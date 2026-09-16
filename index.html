@@ -273,7 +273,7 @@ function parseCSV(text){
 }
 
 // ---------- status computation ----------
-function computeStatuses(records){
+function computeStatuses(records, monitorStart){
   const now = new Date();
   const perSign = {};
   SIGNS.forEach(name => perSign[name] = {
@@ -281,7 +281,12 @@ function computeStatuses(records){
     lastEvent: null, lastEventTime: null, errors: 0, history: []
   });
 
-  let windowStart = null;
+  // "Window start" is when we actually started being able to observe
+  // faults -- i.e. when the monitor process launched -- NOT derived from
+  // log contents. An empty log means "monitoring since X, zero incidents",
+  // not "no window at all" (which used to fall back to the current time
+  // on every refresh, making the displayed value tick forward constantly).
+  let windowStart = (monitorStart && !isNaN(monitorStart.getTime())) ? monitorStart : null;
   let monitorErrors = 0;
 
   records.forEach(r => {
@@ -305,6 +310,7 @@ function computeStatuses(records){
     }
   });
 
+  const windowKnown = !!windowStart;
   if (!windowStart) windowStart = now;
   const totalWindowMs = Math.max(now - windowStart, 1);
 
@@ -316,7 +322,7 @@ function computeStatuses(records){
     s.downtimeMs = downtime;
   });
 
-  return { perSign, windowStart, now, monitorErrors };
+  return { perSign, windowStart, windowKnown, now, monitorErrors };
 }
 
 // ---------- rendering ----------
@@ -412,14 +418,15 @@ function render(data){
       <div class="stat-value">${data.monitorErrors}</div>
     </div>
     <div class="stat">
-      <div class="stat-label">Window Start</div>
-      <div class="stat-value" style="font-size:14px;">${fmtTime(data.windowStart)}</div>
+      <div class="stat-label">Monitoring Since</div>
+      <div class="stat-value" style="font-size:14px;">${data.windowKnown ? fmtTime(data.windowStart) : 'Unknown'}</div>
     </div>
   `;
 
-  document.getElementById("footerNote").textContent =
-    `Last read: ${data.now.toLocaleTimeString()} — window covers ${fmtDuration(data.now - data.windowStart)} of recorded events. ` +
-    `A sign with no rows at all has never had a recorded comms fault (100% uptime since window start).`;
+  document.getElementById("footerNote").textContent = data.windowKnown ?
+    (`Last read: ${data.now.toLocaleTimeString()} — tracking ${fmtDuration(data.now - data.windowStart)} of monitoring. ` +
+    `A sign with no rows at all has never had a recorded comms fault (100% uptime since monitoring began).`) :
+    `Last read: ${data.now.toLocaleTimeString()} — monitoring start time not yet available (waiting on first sync).`;
 }
 
 function renderEmpty(msg){
@@ -436,22 +443,33 @@ async function fetchHostedCSV(){
   return await res.text();
 }
 
+async function fetchMonitorStart(){
+  try {
+    const res = await fetch("monitor_started.txt", { cache: "no-store" });
+    if (!res.ok) return null;
+    const d = new Date((await res.text()).trim());
+    return isNaN(d.getTime()) ? null : d;
+  } catch (e){ return null; }
+}
+
+async function renderHostedOnce(){
+  const [text, monitorStart] = await Promise.all([fetchHostedCSV(), fetchMonitorStart()]);
+  render(computeStatuses(parseCSV(text), monitorStart));
+}
+
 async function tryHostedFirst(){
   try {
-    const text = await fetchHostedCSV();
+    await renderHostedOnce();
     hostedMode = true;
     const info = document.getElementById("fileInfo");
     info.textContent = "Live (fault_log.csv)";
     info.classList.add("connected");
     document.getElementById("connectBtn").style.display = "none";
-    const records = parseCSV(text);
-    render(computeStatuses(records));
     updateHeartbeatDisplay();
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
       try {
-        const t = await fetchHostedCSV();
-        render(computeStatuses(parseCSV(t)));
+        await renderHostedOnce();
       } catch (e){ console.error("hosted refresh failed:", e); }
       updateHeartbeatDisplay();
     }, POLL_MS);

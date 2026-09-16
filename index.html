@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VMS Bridge Sign Status</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#03050a;
+    --panel:#070c16;
+    --panel-border:#12233a;
+    --cyan:#39f5ff;
+    --cyan-dim:#0d5c66;
+    --magenta:#ff2f6e;
+    --amber:#ffb400;
+    --green:#33ff9c;
+    --text:#c9e9ff;
+    --text-dim:#5f7f99;
+    font-family: 'Consolas', 'SFMono-Regular', 'Cascadia Code', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; min-height:100vh;
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(57,245,255,0.08), transparent 60%),
+      radial-gradient(ellipse at 90% 110%, rgba(255,47,110,0.06), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(57,245,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(57,245,255,0.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at center, black 0%, transparent 75%);
+  }
+  .scan{
+    position:fixed; inset:0; pointer-events:none; z-index:5;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,0.0) 0px, rgba(255,255,255,0.0) 2px,
+      rgba(57,245,255,0.02) 3px, rgba(255,255,255,0.0) 4px
+    );
+    opacity:0.5;
+  }
+  header{
+    position:relative; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:16px;
+    padding:22px 28px;
+    border-bottom:1px solid var(--panel-border);
+    background:linear-gradient(180deg, rgba(57,245,255,0.05), transparent);
+  }
+  h1{
+    margin:0; font-size:22px; letter-spacing:3px; font-weight:600;
+    color:var(--text); text-transform:uppercase;
+  }
+  h1 .accent{
+    color:var(--cyan);
+    text-shadow:0 0 8px rgba(57,245,255,0.9), 0 0 24px rgba(57,245,255,0.4);
+  }
+  .sub{ color:var(--text-dim); font-size:11px; letter-spacing:2px; margin-top:4px; }
+  .hdr-right{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  #clock{ font-size:13px; color:var(--cyan); letter-spacing:1px; text-shadow:0 0 6px rgba(57,245,255,0.6); }
+  button{
+    font-family:inherit; cursor:pointer;
+    background:rgba(57,245,255,0.08);
+    border:1px solid var(--cyan-dim);
+    color:var(--cyan);
+    padding:10px 18px; font-size:12px; letter-spacing:2px;
+    text-transform:uppercase; border-radius:2px;
+    transition:all .15s ease;
+  }
+  button:hover{ background:rgba(57,245,255,0.18); box-shadow:0 0 14px rgba(57,245,255,0.35); }
+  button:active{ transform:scale(0.97); }
+  #fileInfo{ font-size:11px; color:var(--text-dim); letter-spacing:1px; }
+  #fileInfo.connected{ color:var(--green); }
+
+  main{ position:relative; z-index:2; padding:28px; }
+
+  .summary-bar{
+    display:flex; gap:16px; flex-wrap:wrap; margin-bottom:26px;
+  }
+  .stat{
+    flex:1; min-width:150px;
+    background:var(--panel); border:1px solid var(--panel-border);
+    padding:16px 18px; border-radius:4px;
+    position:relative; overflow:hidden;
+  }
+  .stat::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:var(--cyan); box-shadow:0 0 10px var(--cyan);
+  }
+  .stat.warn::before{ background:var(--amber); box-shadow:0 0 10px var(--amber); }
+  .stat.fault::before{ background:var(--magenta); box-shadow:0 0 10px var(--magenta); }
+  .stat-label{ font-size:10px; letter-spacing:2px; color:var(--text-dim); text-transform:uppercase; }
+  .stat-value{ font-size:26px; font-weight:700; margin-top:6px; color:var(--text); }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+    gap:18px;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:6px; padding:20px; position:relative; overflow:hidden;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover{ transform:translateY(-2px); }
+  .card.up{ box-shadow:inset 0 0 0 1px rgba(51,255,156,0.15); }
+  .card.fault{ box-shadow:inset 0 0 0 1px rgba(255,47,110,0.25); }
+  .card.unknown{ box-shadow:inset 0 0 0 1px rgba(255,180,0,0.2); }
+
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .sign-name{ font-size:14px; font-weight:600; letter-spacing:0.5px; color:var(--text); max-width:75%; }
+  .badge{
+    display:flex; align-items:center; gap:7px;
+    font-size:10px; letter-spacing:2px; padding:5px 10px; border-radius:20px;
+    text-transform:uppercase; white-space:nowrap;
+  }
+  .badge .dot{ width:7px; height:7px; border-radius:50%; }
+  .badge.up{ background:rgba(51,255,156,0.1); color:var(--green); border:1px solid rgba(51,255,156,0.35); }
+  .badge.up .dot{ background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+  .badge.fault{ background:rgba(255,47,110,0.1); color:var(--magenta); border:1px solid rgba(255,47,110,0.4); }
+  .badge.fault .dot{ background:var(--magenta); box-shadow:0 0 8px var(--magenta); animation:pulseFast 1s infinite; }
+  .badge.unknown{ background:rgba(255,180,0,0.1); color:var(--amber); border:1px solid rgba(255,180,0,0.35); }
+  .badge.unknown .dot{ background:var(--amber); box-shadow:0 0 8px var(--amber); }
+
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  @keyframes pulseFast{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  .uptime-row{ margin-top:18px; }
+  .uptime-label{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin-bottom:6px; letter-spacing:1px; }
+  .uptime-pct{ font-size:20px; font-weight:700; color:var(--text); }
+  .bar-track{ height:6px; border-radius:3px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:3px; background:linear-gradient(90deg, var(--cyan-dim), var(--green)); box-shadow:0 0 8px rgba(51,255,156,0.4); }
+  .bar-fill.fault{ background:linear-gradient(90deg, #7a0e2e, var(--magenta)); box-shadow:0 0 8px rgba(255,47,110,0.5); }
+
+  .meta-line{ margin-top:14px; font-size:11px; color:var(--text-dim); display:flex; justify-content:space-between; }
+  .meta-line span.hl{ color:var(--text); }
+
+  .empty-state{
+    text-align:center; padding:80px 20px; color:var(--text-dim);
+    border:1px dashed var(--panel-border); border-radius:6px;
+  }
+  .empty-state h2{ color:var(--cyan); letter-spacing:2px; font-size:16px; text-transform:uppercase; }
+
+  footer{
+    position:relative; z-index:2;
+    padding:16px 28px; color:var(--text-dim); font-size:10px;
+    letter-spacing:1px; border-top:1px solid var(--panel-border);
+  }
+</style>
+</head>
+<body>
+<div class="scan"></div>
+
+<header>
+  <div>
+    <h1>BRIDGE VMS <span class="accent">STATUS</span></h1>
+    <div class="sub">POOLE LIFTING BRIDGE &mdash; COMMS FAULT MONITOR</div>
+  </div>
+  <div class="hdr-right">
+    <div id="clock">--:--:--</div>
+    <div id="fileInfo">No log file connected</div>
+    <button id="connectBtn">Connect Log File</button>
+  </div>
+</header>
+
+<main>
+  <div class="summary-bar" id="summaryBar"></div>
+  <div class="grid" id="grid">
+    <div class="empty-state">
+      <h2>Awaiting Log File</h2>
+      <p>Click "Connect Log File" and select <b>fault_log.csv</b><br>to begin monitoring.</p>
+    </div>
+  </div>
+</main>
+
+<footer id="footerNote">
+  Reads state-change events from fault_log.csv (written by vms_fault_monitor.py). No file selected yet.
+</footer>
+
+<input type="file" id="fallbackInput" accept=".csv,text/csv" style="display:none">
+
+<script>
+const SIGNS = [
+  "VMS A Blandford Road",
+  "VMS C West Street North",
+  "VMS D New Quay Road",
+  "VMS E Norton Way",
+  "VMS F West St/Hunger Hill",
+];
+const POLL_MS = 5000;
+
+let fileHandle = null;
+let fallbackFile = null;
+let lastModified = 0;
+let pollTimer = null;
+
+// ---------- tiny IndexedDB helper to remember the picked file handle ----------
+function idbGet(key){
+  return new Promise((resolve) => {
+    const req = indexedDB.open("vms-dashboard", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => {
+      const tx = req.result.transaction("kv", "readonly");
+      const getReq = tx.objectStore("kv").get(key);
+      getReq.onsuccess = () => resolve(getReq.result || null);
+      getReq.onerror = () => resolve(null);
+    };
+    req.onerror = () => resolve(null);
+  });
+}
+function idbSet(key, value){
+  return new Promise((resolve) => {
+    const req = indexedDB.open("vms-dashboard", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => {
+      const tx = req.result.transaction("kv", "readwrite");
+      tx.objectStore("kv").put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    };
+    req.onerror = () => resolve(false);
+  });
+}
+
+// ---------- CSV parsing (handles quoted fields with embedded commas) ----------
+function parseCSV(text){
+  const rows = [];
+  let field = "", row = [], inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ','){ row.push(field); field = ""; }
+      else if (c === '\n' || c === '\r'){
+        if (c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = "";
+        if (row.length > 1 || row[0] !== "") rows.push(row);
+        row = [];
+      } else field += c;
+    }
+  }
+  if (field !== "" || row.length){ row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  return rows.slice(1).map(r => {
+    const obj = {};
+    header.forEach((h, idx) => obj[h] = (r[idx] || "").trim());
+    return obj;
+  });
+}
+
+// ---------- status computation ----------
+function computeStatuses(records){
+  const now = new Date();
+  const perSign = {};
+  SIGNS.forEach(name => perSign[name] = {
+    active: false, activeSince: null, downtimeMs: 0,
+    lastEvent: null, lastEventTime: null, errors: 0, history: []
+  });
+
+  let windowStart = null;
+  let monitorErrors = 0;
+
+  records.forEach(r => {
+    const name = r.sign_name;
+    const ts = new Date(r.timestamp);
+    if (isNaN(ts.getTime())) return;
+    if (!windowStart || ts < windowStart) windowStart = ts;
+    if (!perSign[name]) return; // unknown sign in log, ignore
+    const s = perSign[name];
+    s.history.push(r);
+    s.lastEvent = r.event;
+    s.lastEventTime = ts;
+
+    if (r.event === "STARTED" || r.event === "ACTIVE_AT_STARTUP"){
+      if (!s.active){ s.active = true; s.activeSince = ts; }
+    } else if (r.event === "RESOLVED"){
+      if (s.active && s.activeSince){ s.downtimeMs += (ts - s.activeSince); }
+      s.active = false; s.activeSince = null;
+    } else if (r.event === "ERROR"){
+      s.errors++; monitorErrors++;
+    }
+  });
+
+  if (!windowStart) windowStart = now;
+  const totalWindowMs = Math.max(now - windowStart, 1);
+
+  SIGNS.forEach(name => {
+    const s = perSign[name];
+    let downtime = s.downtimeMs;
+    if (s.active && s.activeSince) downtime += (now - s.activeSince);
+    s.uptimePct = Math.max(0, Math.min(100, 100 * (1 - downtime / totalWindowMs)));
+    s.downtimeMs = downtime;
+  });
+
+  return { perSign, windowStart, now, monitorErrors };
+}
+
+// ---------- rendering ----------
+function fmtDuration(ms){
+  const s = Math.floor(ms/1000);
+  const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
+  if (d>0) return `${d}d ${h}h`;
+  if (h>0) return `${h}h ${m}m`;
+  if (m>0) return `${m}m`;
+  return `${s}s`;
+}
+function fmtTime(d){
+  if (!d) return "--";
+  return d.toLocaleString(undefined, {hour:'2-digit',minute:'2-digit',second:'2-digit',day:'2-digit',month:'short'});
+}
+
+function render(data){
+  const grid = document.getElementById("grid");
+  const summaryBar = document.getElementById("summaryBar");
+  grid.innerHTML = "";
+
+  let upCount = 0, faultCount = 0;
+
+  SIGNS.forEach(name => {
+    const s = data.perSign[name];
+    const status = s.active ? "fault" : "up";
+    if (status === "up") upCount++; else faultCount++;
+
+    const card = document.createElement("div");
+    card.className = `card ${status}`;
+
+    const badgeLabel = s.active ? "FAULT" : "ONLINE";
+
+    card.innerHTML = `
+      <div class="card-top">
+        <div class="sign-name">${name}</div>
+        <div class="badge ${status}"><span class="dot"></span>${badgeLabel}</div>
+      </div>
+      <div class="uptime-row">
+        <div class="uptime-label"><span>UPTIME</span><span class="uptime-pct">${s.uptimePct.toFixed(2)}%</span></div>
+        <div class="bar-track"><div class="bar-fill ${status === 'fault' ? 'fault' : ''}" style="width:${s.uptimePct.toFixed(2)}%"></div></div>
+      </div>
+      <div class="meta-line">
+        <span>${s.active ? 'Fault since' : 'Last incident'}</span>
+        <span class="hl">${s.active ? fmtTime(s.activeSince) : (s.lastEvent === 'RESOLVED' ? fmtTime(s.lastEventTime) : 'None recorded')}</span>
+      </div>
+      <div class="meta-line">
+        <span>Downtime (window)</span>
+        <span class="hl">${fmtDuration(s.downtimeMs)}</span>
+      </div>
+      ${s.errors > 0 ? `<div class="meta-line"><span>Monitor errors</span><span class="hl" style="color:var(--amber)">${s.errors}</span></div>` : ""}
+    `;
+    grid.appendChild(card);
+  });
+
+  summaryBar.innerHTML = `
+    <div class="stat">
+      <div class="stat-label">Signs Online</div>
+      <div class="stat-value">${upCount} / ${SIGNS.length}</div>
+    </div>
+    <div class="stat ${faultCount > 0 ? 'fault' : ''}">
+      <div class="stat-label">Active Faults</div>
+      <div class="stat-value">${faultCount}</div>
+    </div>
+    <div class="stat ${data.monitorErrors > 0 ? 'warn' : ''}">
+      <div class="stat-label">Monitor Errors (window)</div>
+      <div class="stat-value">${data.monitorErrors}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Window Start</div>
+      <div class="stat-value" style="font-size:14px;">${fmtTime(data.windowStart)}</div>
+    </div>
+  `;
+
+  document.getElementById("footerNote").textContent =
+    `Last read: ${data.now.toLocaleTimeString()} — window covers ${fmtDuration(data.now - data.windowStart)} of recorded events. ` +
+    `A sign with no rows at all has never had a recorded comms fault (100% uptime since window start).`;
+}
+
+function renderEmpty(msg){
+  document.getElementById("grid").innerHTML = `<div class="empty-state"><h2>${msg}</h2></div>`;
+}
+
+// ---------- hosted mode (same-origin fetch, for when this page is served
+// over http/https rather than opened as a local file) ----------
+let hostedMode = false;
+
+async function fetchHostedCSV(){
+  const res = await fetch("fault_log.csv", { cache: "no-store" });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return await res.text();
+}
+
+async function tryHostedFirst(){
+  try {
+    const text = await fetchHostedCSV();
+    hostedMode = true;
+    const info = document.getElementById("fileInfo");
+    info.textContent = "Live (fault_log.csv)";
+    info.classList.add("connected");
+    document.getElementById("connectBtn").style.display = "none";
+    const records = parseCSV(text);
+    render(computeStatuses(records));
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const t = await fetchHostedCSV();
+        render(computeStatuses(parseCSV(t)));
+      } catch (e){ console.error("hosted refresh failed:", e); }
+    }, POLL_MS);
+    return true;
+  } catch (e){
+    return false; // not hosted (e.g. opened via file://) -- fall back to local mode
+  }
+}
+
+// ---------- file loading ----------
+async function readAndRender(){
+  try {
+    let text;
+    if (fileHandle){
+      const file = await fileHandle.getFile();
+      if (file.lastModified === lastModified) return; // no change
+      lastModified = file.lastModified;
+      text = await file.text();
+    } else if (fallbackFile){
+      text = await fallbackFile.text();
+    } else return;
+
+    const records = parseCSV(text);
+    if (!records.length){
+      // Empty CSV (header only, or truly empty) = no incidents ever = all healthy
+      render(computeStatuses([]));
+      return;
+    }
+    render(computeStatuses(records));
+  } catch (e){
+    console.error("Failed to read log file:", e);
+    renderEmpty("Error Reading File");
+  }
+}
+
+async function connectWithPicker(){
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: "CSV log", accept: { "text/csv": [".csv"] } }],
+      suggestedName: "fault_log.csv",
+    });
+    fileHandle = handle;
+    await idbSet("handle", handle);
+    onConnected(handle.name);
+    await readAndRender();
+    startPolling();
+  } catch (e){
+    if (e.name !== "AbortError") console.error(e);
+  }
+}
+
+function onConnected(name){
+  const info = document.getElementById("fileInfo");
+  info.textContent = `Connected: ${name}`;
+  info.classList.add("connected");
+  document.getElementById("connectBtn").textContent = "Reconnect";
+}
+
+function startPolling(){
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(readAndRender, POLL_MS);
+}
+
+async function tryAutoReconnect(){
+  if (!window.showOpenFilePicker){
+    document.getElementById("connectBtn").textContent = "Choose CSV File";
+    return;
+  }
+  const handle = await idbGet("handle");
+  if (!handle) return;
+  try {
+    const perm = await handle.queryPermission({ mode: "read" });
+    if (perm === "granted"){
+      fileHandle = handle;
+      onConnected(handle.name);
+      await readAndRender();
+      startPolling();
+    } else {
+      document.getElementById("fileInfo").textContent = `Click Connect to re-grant access to ${handle.name}`;
+      fileHandle = handle; // clicking Connect will re-request permission on this handle
+    }
+  } catch (e){ /* handle likely stale, ignore */ }
+}
+
+document.getElementById("connectBtn").addEventListener("click", async () => {
+  if (window.showOpenFilePicker){
+    if (fileHandle){
+      try {
+        const perm = await fileHandle.requestPermission({ mode: "read" });
+        if (perm === "granted"){
+          onConnected(fileHandle.name);
+          await readAndRender();
+          startPolling();
+          return;
+        }
+      } catch(e){ /* fall through to full picker */ }
+    }
+    connectWithPicker();
+  } else {
+    document.getElementById("fallbackInput").click();
+  }
+});
+
+document.getElementById("fallbackInput").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  fallbackFile = f;
+  onConnected(f.name + " (manual — use Choose CSV File to refresh)");
+  await readAndRender();
+});
+
+// ---------- clock ----------
+function tickClock(){
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString();
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+tryHostedFirst().then(hosted => { if (!hosted) tryAutoReconnect(); });
+</script>
+</body>
+</html>

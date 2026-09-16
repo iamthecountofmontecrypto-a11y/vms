@@ -77,6 +77,17 @@
   button:active{ transform:scale(0.97); }
   #fileInfo{ font-size:11px; color:var(--text-dim); letter-spacing:1px; }
   #fileInfo.connected{ color:var(--green); }
+  #heartbeat{
+    font-size:11px; letter-spacing:1px; padding:5px 10px; border-radius:20px;
+    display:flex; align-items:center; gap:7px;
+  }
+  #heartbeat .dot{ width:7px; height:7px; border-radius:50%; }
+  #heartbeat.fresh{ color:var(--green); background:rgba(51,255,156,0.08); border:1px solid rgba(51,255,156,0.3); }
+  #heartbeat.fresh .dot{ background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+  #heartbeat.stale{ color:var(--amber); background:rgba(255,180,0,0.08); border:1px solid rgba(255,180,0,0.3); }
+  #heartbeat.stale .dot{ background:var(--amber); box-shadow:0 0 8px var(--amber); }
+  #heartbeat.dead{ color:var(--magenta); background:rgba(255,47,110,0.08); border:1px solid rgba(255,47,110,0.35); }
+  #heartbeat.dead .dot{ background:var(--magenta); box-shadow:0 0 8px var(--magenta); }
 
   main{ position:relative; z-index:2; padding:28px; }
 
@@ -163,6 +174,7 @@
     <div class="sub">POOLE LIFTING BRIDGE &mdash; COMMS FAULT MONITOR</div>
   </div>
   <div class="hdr-right">
+    <div id="heartbeat" style="display:none;"></div>
     <div id="clock">--:--:--</div>
     <div id="fileInfo">No log file connected</div>
     <button id="connectBtn">Connect Log File</button>
@@ -321,6 +333,32 @@ function fmtTime(d){
   return d.toLocaleString(undefined, {hour:'2-digit',minute:'2-digit',second:'2-digit',day:'2-digit',month:'short'});
 }
 
+const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;   // green below this age
+const HEARTBEAT_STALE_MS = 10 * 60 * 1000;  // amber below this age, red above
+
+async function updateHeartbeatDisplay(){
+  const el = document.getElementById("heartbeat");
+  try {
+    const res = await fetch("heartbeat.txt", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = (await res.text()).trim();
+    const ts = new Date(text);
+    if (isNaN(ts.getTime())) throw new Error("bad timestamp");
+
+    const ageMs = Date.now() - ts;
+    let cls, label;
+    if (ageMs < HEARTBEAT_FRESH_MS){ cls = "fresh"; label = `Monitor active — checked ${fmtDuration(ageMs) || '0s'} ago`; }
+    else if (ageMs < HEARTBEAT_STALE_MS){ cls = "stale"; label = `Monitor stale — last checked ${fmtDuration(ageMs)} ago`; }
+    else { cls = "dead"; label = `Monitor may be down — last checked ${fmtDuration(ageMs)} ago`; }
+
+    el.className = cls;
+    el.style.display = "flex";
+    el.innerHTML = `<span class="dot"></span>${label}`;
+  } catch (e){
+    el.style.display = "none"; // heartbeat.txt not published yet -- don't show a false "dead" state
+  }
+}
+
 function render(data){
   const grid = document.getElementById("grid");
   const summaryBar = document.getElementById("summaryBar");
@@ -408,12 +446,14 @@ async function tryHostedFirst(){
     document.getElementById("connectBtn").style.display = "none";
     const records = parseCSV(text);
     render(computeStatuses(records));
+    updateHeartbeatDisplay();
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(async () => {
       try {
         const t = await fetchHostedCSV();
         render(computeStatuses(parseCSV(t)));
       } catch (e){ console.error("hosted refresh failed:", e); }
+      updateHeartbeatDisplay();
     }, POLL_MS);
     return true;
   } catch (e){

@@ -1,16 +1,1 @@
 timestamp,sign_name,event,status_text
-2026-09-17T01:57:58,VMS A Blandford Road,ERROR,"Message: invalid session id: session deleted as the browser has closed the connection
-from disconnected: Unable to receive message from renderer
-  (Session info: chrome=152.0.7977.84); For documentati"
-2026-09-17T01:57:58,VMS C West Street North,ERROR,"Message: invalid session id; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#invalidsessionidexception
-Stacktrace:
-	chromedriver!"
-2026-09-17T01:57:58,VMS D New Quay Road,ERROR,"Message: invalid session id; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#invalidsessionidexception
-Stacktrace:
-	chromedriver!"
-2026-09-17T01:57:58,VMS E Norton Way,ERROR,"Message: invalid session id; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#invalidsessionidexception
-Stacktrace:
-	chromedriver!"
-2026-09-17T01:57:58,VMS F West St/Hunger Hill,ERROR,"Message: invalid session id; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#invalidsessionidexception
-Stacktrace:
-	chromedriver!"

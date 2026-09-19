@@ -13,3 +13,5 @@ timestamp,sign_name,event,status_text
 2026-09-19T16:45:40,VMS F West St/Hunger Hill,RESOLVED,
 2026-09-19T22:36:08,VMS C West Street North,STARTED,Not Acknowledged
 2026-09-19T22:36:08,VMS F West St/Hunger Hill,STARTED,Not Acknowledged
+2026-09-19T22:46:24,VMS C West Street North,RESOLVED,
+2026-09-19T22:46:24,VMS F West St/Hunger Hill,RESOLVED,

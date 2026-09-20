@@ -15,3 +15,6 @@ timestamp,sign_name,event,status_text
 2026-09-19T22:36:08,VMS F West St/Hunger Hill,STARTED,Not Acknowledged
 2026-09-19T22:46:24,VMS C West Street North,RESOLVED,
 2026-09-19T22:46:24,VMS F West St/Hunger Hill,RESOLVED,
+2026-09-20T07:36:45,VMS A Blandford Road,STARTED,Not Acknowledged
+2026-09-20T07:36:45,VMS D New Quay Road,OTHER_FAULTS_CLEARED,
+2026-09-20T07:36:45,VMS D New Quay Road,STARTED,Not Acknowledged

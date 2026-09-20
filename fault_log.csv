@@ -21,3 +21,5 @@ timestamp,sign_name,event,status_text
 2026-09-20T07:46:45,VMS A Blandford Road,RESOLVED,
 2026-09-20T07:46:46,VMS D New Quay Road,OTHER_FAULTS_PRESENT,"(('LED Fail Non Critical', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
 2026-09-20T07:46:46,VMS D New Quay Road,RESOLVED,
+2026-09-20T23:47:26,VMS A Blandford Road,STARTED,Not Acknowledged
+2026-09-20T23:47:26,VMS C West Street North,STARTED,Not Acknowledged

@@ -43,3 +43,9 @@ timestamp,sign_name,event,status_text
 2026-09-22T14:09:00,VMS D New Quay Road,STARTED,Not Acknowledged
 2026-09-22T14:09:01,VMS F West St/Hunger Hill,OTHER_FAULTS_CLEARED,
 2026-09-22T14:09:01,VMS F West St/Hunger Hill,STARTED,Not Acknowledged
+2026-09-22T14:19:01,VMS A Blandford Road,RESOLVED,
+2026-09-22T14:19:02,VMS C West Street North,RESOLVED,
+2026-09-22T14:19:02,VMS D New Quay Road,OTHER_FAULTS_PRESENT,"(('LED Fail Non Critical', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
+2026-09-22T14:19:02,VMS D New Quay Road,RESOLVED,
+2026-09-22T14:19:17,VMS F West St/Hunger Hill,OTHER_FAULTS_PRESENT,"(('Internal Comms Status', 'Not Acknowledged'), ('LED Fail Critical', 'Not Acknowledged'), ('Luminance Fail', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
+2026-09-22T14:19:17,VMS F West St/Hunger Hill,RESOLVED,

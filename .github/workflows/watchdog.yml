@@ -1,0 +1,41 @@
+name: Monitor watchdog
+
+# Every 15 min. GitHub can delay scheduled runs under load (often 5-30 min),
+# so treat detection time as "usually within about an hour".
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watchdog
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Remembers whether we've already alerted for this outage, so it's one
+      # message per outage rather than one every 15 minutes.
+      - uses: actions/cache/restore@v4
+        with:
+          path: .watchdog
+          key: watchdog-${{ github.run_id }}
+          restore-keys: watchdog-
+
+      - name: Check heartbeat
+        run: python3 .github/watchdog.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .watchdog
+          key: watchdog-${{ github.run_id }}

@@ -434,6 +434,21 @@
     .drive-r, .drive-l, .sailing, .shimmer, .bob, .wake, .streak, .dmx circle, .gull-path, .gull, .bscene[data-state="lifting"] .warn{ animation:none; }
     .leaf, .sail{ transition-duration:.01s; transition-delay:0s !important; }
   }
+
+  /* boat cursor (bow is the click point); clickable things get a lit teal sail */
+  html, body{ cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 1 17, auto; }
+  a, button, select, label, summary, [role="button"], [data-run], input[type="checkbox"], .timeline div{
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 1 17, pointer;
+  }
+
+  /* hover tooltip, offset below-right of the cursor so it isn't covered */
+  .tip{
+    position:fixed; z-index:60; pointer-events:none; left:0; top:0; max-width:min(420px, 90vw);
+    padding:7px 11px; border-radius:8px; font-size:12px; line-height:1.4; color:var(--text);
+    background:rgba(8,12,28,0.96); border:1px solid var(--panel-border); box-shadow:0 10px 28px rgba(0,0,0,0.45);
+    opacity:0; transition:opacity .12s ease;
+  }
+  .tip.show{ opacity:1; }
 </style>
 </head>
 <body>
@@ -1012,7 +1027,8 @@ function renderSignMessages(){
       const left = 100 * (a - tlStart) / (now - tlStart), width = 100 * (b - a) / (now - tlStart);
       return `<div class="${stateClass(r.state)}" style="left:${left}%;width:${width}%"
         data-run="${escapeHtml(runKey(r))}" tabindex="0" role="button"
-        title="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'} (click to see it in the history)"></div>`;
+        data-tip="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'} · click to see it in the history"
+        aria-label="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'}"></div>`;
     }).join("");
 
     const row = document.createElement("div");
@@ -1265,6 +1281,36 @@ function renderMarquee(){
   const html = content + content; // doubled for a seamless loop
   if (track.dataset.src !== html){ track.dataset.src = html; track.innerHTML = html; }
 }
+
+// ---------- tooltip for [data-tip] elements (timeline bars) ----------
+// Sits 30px below and 16px right of the pointer, flipping above/left near the screen edges.
+const tipEl = document.createElement("div");
+tipEl.className = "tip"; tipEl.setAttribute("role", "tooltip");
+document.body.appendChild(tipEl);
+function placeTip(x, y){
+  const r = tipEl.getBoundingClientRect();
+  let left = x + 16, top = y + 30;
+  if (left + r.width > innerWidth - 8) left = Math.max(8, x - r.width - 12);
+  if (top + r.height > innerHeight - 8) top = y - r.height - 14;
+  tipEl.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+}
+document.addEventListener("pointermove", e => {
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t){ tipEl.classList.remove("show"); return; }
+  if (tipEl.textContent !== t.dataset.tip) tipEl.textContent = t.dataset.tip;
+  placeTip(e.clientX, e.clientY);
+  tipEl.classList.add("show");
+});
+document.addEventListener("focusin", e => {
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t) return;
+  tipEl.textContent = t.dataset.tip;
+  const b = t.getBoundingClientRect();
+  placeTip(b.left + b.width / 2, b.bottom - 16);
+  tipEl.classList.add("show");
+});
+["focusout", "scroll", "pointerleave"].forEach(ev => (ev === "pointerleave" ? document.documentElement : window)
+  .addEventListener(ev, () => tipEl.classList.remove("show"), { passive: true }));
 
 // gentle tilt on the fault cards
 document.addEventListener("pointermove", e => {

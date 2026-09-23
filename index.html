@@ -607,8 +607,9 @@ function fmtTime(d){
   return d.toLocaleString(undefined, {hour:'2-digit',minute:'2-digit',second:'2-digit',day:'2-digit',month:'short'});
 }
 
-const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;   // green below this age
-const HEARTBEAT_STALE_MS = 10 * 60 * 1000;  // amber below this age, red above
+// The monitor checks every 10 min, so a heartbeat up to ~12 min old is normal.
+const HEARTBEAT_FRESH_MS = 12 * 60 * 1000;  // green below this age (one check interval + sync/publish time)
+const HEARTBEAT_STALE_MS = 25 * 60 * 1000;  // amber below this age (a missed check), red above
 
 async function updateHeartbeatDisplay(){
   const el = document.getElementById("heartbeat");

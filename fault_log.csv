@@ -79,3 +79,5 @@ timestamp,sign_name,event,status_text
 2026-09-23T09:28:35,VMS F West St/Hunger Hill,OTHER_FAULTS_PRESENT,"(('Internal Comms Status', 'Not Acknowledged'), ('LED Fail Critical', 'Not Acknowledged'), ('Luminance Fail', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
 2026-09-23T09:33:13,VMS D New Quay Road,OTHER_FAULTS_PRESENT,"(('LED Fail Non Critical', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
 2026-09-23T09:33:13,VMS F West St/Hunger Hill,OTHER_FAULTS_PRESENT,"(('Internal Comms Status', 'Not Acknowledged'), ('LED Fail Critical', 'Not Acknowledged'), ('Luminance Fail', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
+2026-09-23T10:05:19,VMS D New Quay Road,OTHER_FAULTS_PRESENT,"(('LED Fail Non Critical', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
+2026-09-23T10:05:19,VMS F West St/Hunger Hill,OTHER_FAULTS_PRESENT,"(('Internal Comms Status', 'Not Acknowledged'), ('LED Fail Critical', 'Not Acknowledged'), ('Luminance Fail', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"

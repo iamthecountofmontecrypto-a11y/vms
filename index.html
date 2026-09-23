@@ -217,7 +217,7 @@
 
   /* ---------- view toggle (both views) ---------- */
   #viewToggle{ padding:8px 14px; font-size:11px; }
-  #sky, #auroraCanvas, #hero, #marquee{ display:none; }
+  #sky, #auroraCanvas, #hero, #sceneBand, #marquee{ display:none; }
 
   /* =====================================================================
      AURORA VIEW -- frosted glass over a night sky. Same data and markup as
@@ -299,16 +299,15 @@
   html[data-view="aurora"] table.hist tr.long td{ color:var(--rose); }
   html[data-view="aurora"] footer{ background:transparent; }
 
-  /* hero: staggered headline, breathing orb on a dial, lede bottom-left, legend top-right */
+  /* hero: one compact row (headline + summary | orb | legend); the bridge scene sits in a band below */
   html[data-view="aurora"] #hero{
-    display:grid; position:relative; min-height:min(84vh, 820px); margin:-4px 0 30px;
-    grid-template-columns:1fr minmax(260px, 340px) 1fr;
-    grid-template-rows:auto auto 1fr auto; gap:6px 24px; align-items:center;
+    display:grid; position:relative; margin:14px 0 0;
+    grid-template-columns:minmax(0,1fr) auto minmax(230px, 260px); gap:24px 44px; align-items:center;
   }
-  .hero-line{ font-weight:200; font-size:clamp(44px, 8.6vw, 124px); line-height:0.95; letter-spacing:-0.03em; margin:0; }
-  .hero-line.l1{ grid-column:1 / 3; grid-row:1; justify-self:start; padding-top:18px; }
-  .hero-line.l2{ grid-column:2 / 4; grid-row:2; justify-self:end; color:var(--phase, var(--teal)); transition:color 1.2s ease; }
-  .orb-wrap{ grid-column:2; grid-row:3; justify-self:center; position:relative; width:min(330px, 76vw); aspect-ratio:1; margin-top:24px; }
+  .hero-text{ min-width:0; }
+  .hero-line{ font-weight:200; font-size:clamp(40px, 6vw, 92px); line-height:0.98; letter-spacing:-0.03em; margin:0; }
+  .hero-line.l2{ padding-left:clamp(24px, 6vw, 120px); color:var(--phase, var(--teal)); transition:color 1.2s ease; }
+  .orb-wrap{ position:relative; width:clamp(200px, 19vw, 260px); aspect-ratio:1; }
   .orb-wrap svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
   .dial-track{ fill:none; stroke:rgba(255,255,255,0.08); stroke-width:1.5; }
   .dial-prog{ fill:none; stroke:var(--phase, var(--teal)); stroke-width:2.5; stroke-linecap:round; transition:stroke-dashoffset 1.2s ease, stroke 1.2s ease; filter:drop-shadow(0 0 6px var(--phase, var(--teal))); }
@@ -325,13 +324,13 @@
   .orb-core .big{ font-size:clamp(28px, 4.2vw, 42px); font-weight:300; font-variant-numeric:tabular-nums; }
   .orb-core .small{ font-size:10px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.75); margin-top:4px; }
   @keyframes breathe{ 0%,100%{ transform:scale(0.86); opacity:0.7; } 45%{ transform:scale(1); opacity:0.95; } }
-  .hero-lede{ grid-column:1; grid-row:4; align-self:end; max-width:380px; }
+  .hero-lede{ max-width:460px; margin-top:22px; }
   .hero-lede p{ font-size:15px; line-height:1.6; color:var(--text-dim); margin:0 0 18px; font-weight:300; }
   .hero-lede p b{ color:var(--text); font-weight:500; }
   .hero-ctas{ display:flex; gap:10px; flex-wrap:wrap; }
   .hero-ctas .primary{ background:var(--phase, var(--teal)); color:#070b1f; border-color:transparent; font-weight:600; }
   .legend-card{
-    grid-column:3; grid-row:3; justify-self:end; align-self:start; margin-top:24px; width:250px; padding:18px 20px; border-radius:20px;
+    padding:18px 20px; border-radius:20px;
     background:var(--panel); border:1px solid var(--panel-border); box-shadow:var(--glass-shadow);
     backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
   }
@@ -356,33 +355,24 @@
   @keyframes drift{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
 
   @media (max-width:860px){
-    html[data-view="aurora"] #hero{ grid-template-columns:1fr; grid-template-rows:auto; min-height:0; gap:22px; }
-    .hero-line.l1, .hero-line.l2, .orb-wrap, .hero-lede, .legend-card{ grid-column:1; grid-row:auto; }
-    .hero-line.l2{ justify-self:end; }
-    .legend-card{ justify-self:stretch; width:auto; margin-top:0; }
-    html[data-view="aurora"] .scene-credit{ position:relative; z-index:1; bottom:auto; right:auto; max-width:none; text-align:left; }
+    html[data-view="aurora"] #hero{ grid-template-columns:1fr; gap:22px; }
+    .orb-wrap{ justify-self:center; width:min(230px, 64vw); }
   }
   @media (prefers-reduced-motion: reduce){
     .orb, .mq-track{ animation:none; }
   }
 
   /* ---------- animated bridges behind the hero (aurora view only) ---------- */
-  #heroScene, .scene-credit{ display:none; }
+  html[data-view="aurora"] #sceneBand{ display:block; margin:-4px -28px 18px; pointer-events:none; }
   html[data-view="aurora"] #heroScene{
-    display:flex; position:absolute; z-index:0; pointer-events:none;
-    left:-28px; right:-28px; bottom:-30px;
-    -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 16%);
-    mask-image:linear-gradient(to bottom, transparent 0%, #000 16%);
-    opacity:.85;
+    display:flex;
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 14%);
+    mask-image:linear-gradient(to bottom, transparent 0%, #000 14%);
+    opacity:.9;
   }
   #heroScene .bscene{ flex:1 1 0; min-width:0; width:50%; height:auto; display:block; }
-  html[data-view="aurora"] #hero > :not(#heroScene):not(.scene-credit){ position:relative; z-index:1; }
-  html[data-view="aurora"] #hero{ padding-bottom:calc(8.4vw + 20px); }
-  html[data-view="aurora"] .hero-lede p{ text-shadow:0 1px 14px rgba(7,11,31,0.95); }
-  html[data-view="aurora"] .scene-credit{
-    display:block; position:absolute; right:0; bottom:4px; max-width:460px; text-align:right; text-shadow:0 1px 8px rgba(7,11,31,0.95);
-    font-size:10px; line-height:1.4; color:var(--text-dim); z-index:1;
-  }
+  @media (max-width:640px){ html[data-view="aurora"] #heroScene{ flex-direction:column; } #heroScene .bscene{ width:100%; } }
+  .scene-credit{ padding:6px 28px 0; text-align:right; font-size:10px; line-height:1.4; color:var(--text-dim); }
   .lg-preview{ margin-top:10px; font-size:11px; color:var(--text-dim); }
   html[data-view="aurora"] .linkish{
     background:none; border:0; border-radius:0; padding:0; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
@@ -447,10 +437,41 @@
 
 <main>
   <section id="hero" aria-live="polite">
-    <!-- Animated bridges behind the hero, drawn from reference photos. They follow
+    <div class="hero-text">
+    <h2 class="hero-line l1" id="heroL1">Bridge signs</h2>
+    <h2 class="hero-line l2" id="heroL2">awaiting data.</h2>
+    <div class="hero-lede">
+      <p id="heroLede">Waiting for the first sign check.</p>
+      <div class="hero-ctas">
+        <button class="primary" id="ctaHistory">View history</button>
+        <button id="ctaFaults">Comms faults</button>
+      </div>
+    </div>
+    </div>
+    <div class="orb-wrap">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="dial-track" cx="100" cy="100" r="92"/>
+        <circle class="dial-prog" id="dialProg" cx="100" cy="100" r="92" transform="rotate(-90 100 100)"
+                stroke-dasharray="578.05" stroke-dashoffset="578.05"/>
+        <g id="dialTicks"></g>
+      </svg>
+      <div class="orb"></div>
+      <div class="orb-core"><div class="big" id="orbBig">--</div><div class="small" id="orbSmall">no data</div></div>
+    </div>
+    <aside class="legend-card">
+      <h3>Signs are showing</h3>
+      <div class="lg-item" data-state="BOTH" style="color:var(--teal)"><i style="background:var(--teal)"></i><span>Both bridges available</span><span class="lg-dur"></span></div>
+      <div class="lg-item" data-state="POOLE" style="color:var(--violet)"><i style="background:var(--violet)"></i><span>Lift Poole Bridge</span><span class="lg-dur"></span></div>
+      <div class="lg-item" data-state="TWIN" style="color:var(--rose)"><i style="background:var(--rose)"></i><span>Lift Twin Sails Bridge</span><span class="lg-dur"></span></div>
+      <div class="lg-note" id="legendNote"></div>
+      <div class="lg-preview">Preview a lift: <button class="linkish" data-preview="POOLE">Poole</button> · <button class="linkish" data-preview="TWIN">Twin Sails</button></div>
+    </aside>
+  </section>
+  <div id="sceneBand">
+    <!-- Animated bridges under the hero, drawn from reference photos. They follow
          what the signs are showing, not a live feed of the bridges themselves. -->
     <div id="heroScene" aria-hidden="true">
-      <svg class="bscene" id="bridgeTwin" data-state="closed" style="--bcol:var(--rose)" viewBox="0 0 600 300" aria-hidden="true">
+      <svg class="bscene" id="bridgeTwin" data-state="closed" style="--bcol:var(--rose)" viewBox="0 0 600 272" aria-hidden="true">
         <defs>
           <linearGradient id="tsSailL" x1="0" x2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#b9c4d4"/></linearGradient>
           <linearGradient id="tsSailR" x1="0" x2="1"><stop offset="0" stop-color="#2b3852"/><stop offset="1" stop-color="#4c5d7c"/></linearGradient>
@@ -514,7 +535,7 @@
           <circle cx="2" cy="10" r="1.4" fill="#ff4050"/><circle cx="68" cy="10" r="1.4" fill="#41ff8b"/>
         </g></g></g>
       </svg>
-      <svg class="bscene" id="bridgePoole" data-state="closed" style="--bcol:var(--violet)" viewBox="0 0 600 300" aria-hidden="true">
+      <svg class="bscene" id="bridgePoole" data-state="closed" style="--bcol:var(--violet)" viewBox="0 0 600 272" aria-hidden="true">
         <defs>
           <linearGradient id="pbTower" x1="0" x2="1"><stop offset="0" stop-color="#5fae9b"/><stop offset=".55" stop-color="#7fcab5"/><stop offset="1" stop-color="#4b8f80"/></linearGradient>
           <linearGradient id="pbLeaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3563c4"/><stop offset="1" stop-color="#1c3a80"/></linearGradient>
@@ -601,35 +622,8 @@
         </g></g></g>
       </svg>
     </div>
-    <h2 class="hero-line l1" id="heroL1">Bridge signs</h2>
-    <h2 class="hero-line l2" id="heroL2">awaiting data.</h2>
-    <div class="orb-wrap">
-      <svg viewBox="0 0 200 200" aria-hidden="true">
-        <circle class="dial-track" cx="100" cy="100" r="92"/>
-        <circle class="dial-prog" id="dialProg" cx="100" cy="100" r="92" transform="rotate(-90 100 100)"
-                stroke-dasharray="578.05" stroke-dashoffset="578.05"/>
-        <g id="dialTicks"></g>
-      </svg>
-      <div class="orb"></div>
-      <div class="orb-core"><div class="big" id="orbBig">--</div><div class="small" id="orbSmall">no data</div></div>
-    </div>
-    <div class="hero-lede">
-      <p id="heroLede">Waiting for the first sign check.</p>
-      <div class="hero-ctas">
-        <button class="primary" id="ctaHistory">View history</button>
-        <button id="ctaFaults">Comms faults</button>
-      </div>
-    </div>
-    <aside class="legend-card">
-      <h3>Signs are showing</h3>
-      <div class="lg-item" data-state="BOTH" style="color:var(--teal)"><i style="background:var(--teal)"></i><span>Both bridges available</span><span class="lg-dur"></span></div>
-      <div class="lg-item" data-state="POOLE" style="color:var(--violet)"><i style="background:var(--violet)"></i><span>Lift Poole Bridge</span><span class="lg-dur"></span></div>
-      <div class="lg-item" data-state="TWIN" style="color:var(--rose)"><i style="background:var(--rose)"></i><span>Lift Twin Sails Bridge</span><span class="lg-dur"></span></div>
-      <div class="lg-note" id="legendNote"></div>
-      <div class="lg-preview">Preview a lift: <button class="linkish" data-preview="POOLE">Poole</button> · <button class="linkish" data-preview="TWIN">Twin Sails</button></div>
-    </aside>
-    <div class="scene-credit">Bridges drawn from photos by Jim Linwood, Peter Elsdon and jeffowenphotos (Wikimedia Commons, CC BY / CC BY-SA). Animation follows what the signs show.</div>
-  </section>
+  <div class="scene-credit">Bridges drawn from photos by Jim Linwood, Peter Elsdon and jeffowenphotos (Wikimedia Commons, CC BY / CC BY-SA). Animation follows what the signs show.</div>
+  </div>
   <div id="marquee" aria-label="Recent sign changes"><div class="mq-track" id="mqTrack"></div></div>
 
 

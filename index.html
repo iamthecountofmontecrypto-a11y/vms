@@ -194,7 +194,10 @@
   .msg-state .since{ display:block; font-size:11px; color:var(--text-dim); margin-top:3px; }
   .msg-row.stuck .since{ color:var(--magenta); }
   .timeline{ position:relative; height:14px; border-radius:3px; background:rgba(255,255,255,0.04); overflow:hidden; }
-  .timeline div{ position:absolute; top:0; bottom:0; }
+  .timeline div{ position:absolute; top:0; bottom:0; cursor:pointer; transition:filter .15s ease, box-shadow .15s ease; }
+  .timeline div:hover, .timeline div:focus-visible{ filter:brightness(1.35); box-shadow:inset 0 0 0 1px rgba(255,255,255,0.7); outline:none; }
+  table.hist tr.flash td{ background:rgba(255,255,255,0.10); animation:rowFlash 1.2s ease-in-out 3; }
+  @keyframes rowFlash{ 0%,100%{ background:rgba(255,255,255,0.04); } 50%{ background:rgba(255,255,255,0.18); } }
   .tl-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-dim); margin-top:3px; }
   @media (max-width:720px){ .msg-row{ grid-template-columns:1fr; } }
 
@@ -970,7 +973,8 @@ function renderSignMessages(){
       if (b <= a) return "";
       const left = 100 * (a - tlStart) / (now - tlStart), width = 100 * (b - a) / (now - tlStart);
       return `<div class="${stateClass(r.state)}" style="left:${left}%;width:${width}%"
-        title="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'}"></div>`;
+        data-run="${escapeHtml(runKey(r))}" tabindex="0" role="button"
+        title="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'} (click to see it in the history)"></div>`;
     }).join("");
 
     const row = document.createElement("div");
@@ -1027,7 +1031,8 @@ function renderHistory(allRuns, now, limitMs){
     const ms = Math.max(0, (r.end || now) - r.start);
     const long = isLift(r.state) && ms >= limitMs;
     const to = r.end ? fmtTime(r.end) + (r.gapAfter ? " (data gap)" : "") : "now";
-    return `<tr class="${long ? "long" : ""}">
+    const hl = highlight && highlight.key === runKey(r) && Date.now() < highlight.until;
+    return `<tr class="${long ? "long" : ""}${hl ? " flash" : ""}" data-run="${escapeHtml(runKey(r))}">
       <td>${escapeHtml(r.sign)}</td>
       <td><i class="sw ${stateClass(r.state)}"></i>${escapeHtml(stateText(r.state))}</td>
       <td>${r.lowerBound ? "≤ " : ""}${fmtTime(r.start)}</td>
@@ -1038,6 +1043,38 @@ function renderHistory(allRuns, now, limitMs){
 
 ["fSign", "fState", "fLong"].forEach(id =>
   document.getElementById(id).addEventListener("change", renderSignMessages));
+
+// ---------- timeline -> history: click a coloured bar to jump to that period in the table ----------
+const HIGHLIGHT_MS = 6000;
+let highlight = null;
+function runKey(r){ return `${r.sign}|${r.start.getTime()}`; }
+
+function jumpToRun(key){
+  const findRow = () => [...document.querySelectorAll("#histBody tr[data-run]")].find(tr => tr.dataset.run === key);
+  highlight = { key, until: Date.now() + HIGHLIGHT_MS };
+  renderSignMessages();
+  if (!findRow()){
+    // hidden by the current filters: show everything for that sign instead
+    document.getElementById("fSign").value = key.split("|")[0];
+    document.getElementById("fState").value = "";
+    document.getElementById("fLong").checked = false;
+    renderSignMessages();
+  }
+  const row = findRow();
+  if (!row) return;
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => { if (highlight && highlight.key === key) { highlight = null; renderSignMessages(); } }, HIGHLIGHT_MS + 50);
+}
+
+const msgRows = document.getElementById("msgRows");
+msgRows.addEventListener("click", e => {
+  const seg = e.target.closest("[data-run]");
+  if (seg) jumpToRun(seg.dataset.run);
+});
+msgRows.addEventListener("keydown", e => {
+  const seg = e.target.closest("[data-run]");
+  if (seg && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); jumpToRun(seg.dataset.run); }
+});
 
 // ---------- aurora view: hero, marquee, sky ----------
 const PHASE = { BOTH:"var(--teal)", POOLE:"var(--violet)", TWIN:"var(--rose)" };

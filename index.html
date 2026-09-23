@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <title>VMS Bridge Sign Status</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Apply the saved view before first paint so there's no flash. Classic is the default.
+  (function(){
+    var v = "classic";
+    try { if (localStorage.getItem("vms-view") === "aurora") v = "aurora"; } catch (e) {}
+    document.documentElement.setAttribute("data-view", v);
+  })();
+</script>
 <style>
   :root{
     --bg:#03050a;
@@ -203,10 +214,162 @@
     padding:16px 28px; color:var(--text-dim); font-size:10px;
     letter-spacing:1px; border-top:1px solid var(--panel-border);
   }
+
+  /* ---------- view toggle (both views) ---------- */
+  #viewToggle{ padding:8px 14px; font-size:11px; }
+  #sky, #auroraCanvas, #hero, #marquee{ display:none; }
+
+  /* =====================================================================
+     AURORA VIEW -- frosted glass over a night sky. Same data and markup as
+     the classic view; only styling changes, plus the hero, the canvases
+     and the marquee, which exist only in this view.
+     ===================================================================== */
+  html[data-view="aurora"]{
+    --bg:#070b1f;
+    --panel:rgba(255,255,255,0.045);
+    --panel-border:rgba(255,255,255,0.10);
+    --teal:#2de2c4; --violet:#7b5cff; --rose:#ff6fa8;
+    --cyan:#2de2c4;
+    --cyan-dim:rgba(45,226,196,0.35);
+    --green:#2de2c4;
+    --magenta:#ff9a4d;          /* faults: warm orange, kept distinct from the rose Twin Sails state */
+    --amber:#ffd166;
+    --text:#e9ecff;
+    --text-dim:rgba(233,236,255,0.55);
+    --glass-blur:blur(18px) saturate(140%);
+    --glass-shadow:inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.04), 0 18px 40px rgba(0,0,0,0.28);
+    font-family:'Manrope', system-ui, sans-serif;
+  }
+  html[data-view="aurora"] body{ background:var(--bg); }
+  html[data-view="aurora"] body::before, html[data-view="aurora"] .scan{ display:none; }
+  html[data-view="aurora"] body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:1; opacity:0.07; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  html[data-view="aurora"] #sky, html[data-view="aurora"] #auroraCanvas{
+    display:block; position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none;
+  }
+  html[data-view="aurora"] #auroraCanvas{ filter:blur(28px); opacity:0.9; }
+
+  /* glass surfaces */
+  html[data-view="aurora"] header{
+    background:rgba(7,11,31,0.35); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    border-bottom:1px solid var(--panel-border); position:sticky; top:0; z-index:10;
+  }
+  html[data-view="aurora"] h1{ font-weight:300; letter-spacing:0.5px; text-transform:none; font-size:20px; }
+  html[data-view="aurora"] h1 .accent{ color:var(--teal); text-shadow:none; font-weight:500; }
+  html[data-view="aurora"] .sub{ letter-spacing:1.5px; font-size:10px; }
+  html[data-view="aurora"] #clock{ color:var(--text); text-shadow:none; font-variant-numeric:tabular-nums; }
+  html[data-view="aurora"] button{
+    border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.16);
+    color:var(--text); letter-spacing:1px; backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+  }
+  html[data-view="aurora"] button:hover{ background:rgba(255,255,255,0.12); box-shadow:0 0 18px rgba(45,226,196,0.25); }
+  html[data-view="aurora"] .stat,
+  html[data-view="aurora"] .card,
+  html[data-view="aurora"] .msg-row,
+  html[data-view="aurora"] .table-wrap,
+  html[data-view="aurora"] .empty-state{
+    background:var(--panel); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--panel-border); border-radius:20px; box-shadow:var(--glass-shadow);
+  }
+  html[data-view="aurora"] .stat::before{ width:0; }
+  html[data-view="aurora"] .stat-label{ letter-spacing:1.5px; }
+  html[data-view="aurora"] .stat-value{ font-weight:300; font-size:30px; }
+  html[data-view="aurora"] .card{ transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)); transition:transform .25s ease, box-shadow .25s ease; }
+  html[data-view="aurora"] .card:hover{ box-shadow:var(--glass-shadow), 0 0 32px rgba(45,226,196,0.12); }
+  html[data-view="aurora"] .card.up, html[data-view="aurora"] .card.fault{ box-shadow:var(--glass-shadow); }
+  html[data-view="aurora"] .card.fault{ border-color:rgba(255,154,77,0.45); }
+  html[data-view="aurora"] .sign-name{ font-weight:500; }
+  html[data-view="aurora"] .uptime-pct{ font-weight:300; }
+  html[data-view="aurora"] .bar-fill{ background:linear-gradient(90deg, var(--violet), var(--teal)); box-shadow:none; }
+  html[data-view="aurora"] .section-title{ font-weight:200; font-size:clamp(26px,4vw,40px); letter-spacing:0; text-transform:none; margin-top:56px; }
+  html[data-view="aurora"] .msg-row{ border-radius:16px; }
+  html[data-view="aurora"] .msg-row.stuck{ border-color:rgba(255,111,168,0.6); box-shadow:var(--glass-shadow), 0 0 26px rgba(255,111,168,0.2); }
+  html[data-view="aurora"] .msg-row.stuck .since{ color:var(--rose); }
+  html[data-view="aurora"] .timeline{ border-radius:999px; background:rgba(255,255,255,0.05); }
+  html[data-view="aurora"] .st-BOTH{ background:var(--teal); }
+  html[data-view="aurora"] .st-POOLE{ background:var(--violet); }
+  html[data-view="aurora"] .st-TWIN{ background:var(--rose); }
+  html[data-view="aurora"] .st-UNKNOWN{ background:var(--amber); }
+  html[data-view="aurora"] .filters select{ border-radius:999px; background:rgba(255,255,255,0.06); border:1px solid var(--panel-border); padding:7px 12px; }
+  html[data-view="aurora"] .filters select option{ background:#0d1230; }
+  html[data-view="aurora"] table.hist th{ background:rgba(12,17,45,0.85); backdrop-filter:var(--glass-blur); letter-spacing:1.5px; }
+  html[data-view="aurora"] table.hist td{ border-top:1px solid rgba(255,255,255,0.06); }
+  html[data-view="aurora"] table.hist tr.long td{ color:var(--rose); }
+  html[data-view="aurora"] footer{ background:transparent; }
+
+  /* hero: staggered headline, breathing orb on a dial, lede bottom-left, legend top-right */
+  html[data-view="aurora"] #hero{
+    display:grid; position:relative; min-height:min(84vh, 820px); margin:-4px 0 30px;
+    grid-template-columns:1fr minmax(260px, 340px) 1fr;
+    grid-template-rows:auto auto 1fr auto; gap:6px 24px; align-items:center;
+  }
+  .hero-line{ font-weight:200; font-size:clamp(44px, 8.6vw, 124px); line-height:0.95; letter-spacing:-0.03em; margin:0; }
+  .hero-line.l1{ grid-column:1 / 3; grid-row:1; justify-self:start; padding-top:18px; }
+  .hero-line.l2{ grid-column:2 / 4; grid-row:2; justify-self:end; color:var(--phase, var(--teal)); transition:color 1.2s ease; }
+  .orb-wrap{ grid-column:2; grid-row:3; justify-self:center; position:relative; width:min(330px, 76vw); aspect-ratio:1; margin-top:24px; }
+  .orb-wrap svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .dial-track{ fill:none; stroke:rgba(255,255,255,0.08); stroke-width:1.5; }
+  .dial-prog{ fill:none; stroke:var(--phase, var(--teal)); stroke-width:2.5; stroke-linecap:round; transition:stroke-dashoffset 1.2s ease, stroke 1.2s ease; filter:drop-shadow(0 0 6px var(--phase, var(--teal))); }
+  .dial-tick{ stroke:rgba(255,255,255,0.28); stroke-width:1; }
+  .dial-lbl{ fill:var(--text-dim); font-size:9px; letter-spacing:1px; font-family:'Manrope',sans-serif; }
+  .orb{
+    position:absolute; inset:19%; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), transparent 32%),
+               radial-gradient(circle at 50% 55%, var(--phase, var(--teal)), transparent 72%);
+    box-shadow:0 0 60px var(--phase, var(--teal)), inset 0 0 40px rgba(255,255,255,0.12);
+    opacity:0.85; animation:breathe var(--breath, 8s) ease-in-out infinite; transition:background 1.2s ease, box-shadow 1.2s ease;
+  }
+  .orb-core{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; pointer-events:none; }
+  .orb-core .big{ font-size:clamp(28px, 4.2vw, 42px); font-weight:300; font-variant-numeric:tabular-nums; }
+  .orb-core .small{ font-size:10px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.75); margin-top:4px; }
+  @keyframes breathe{ 0%,100%{ transform:scale(0.86); opacity:0.7; } 45%{ transform:scale(1); opacity:0.95; } }
+  .hero-lede{ grid-column:1; grid-row:4; align-self:end; max-width:380px; }
+  .hero-lede p{ font-size:15px; line-height:1.6; color:var(--text-dim); margin:0 0 18px; font-weight:300; }
+  .hero-lede p b{ color:var(--text); font-weight:500; }
+  .hero-ctas{ display:flex; gap:10px; flex-wrap:wrap; }
+  .hero-ctas .primary{ background:var(--phase, var(--teal)); color:#070b1f; border-color:transparent; font-weight:600; }
+  .legend-card{
+    grid-column:3; grid-row:3; justify-self:end; align-self:start; margin-top:24px; width:250px; padding:18px 20px; border-radius:20px;
+    background:var(--panel); border:1px solid var(--panel-border); box-shadow:var(--glass-shadow);
+    backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+  }
+  .legend-card h3{ margin:0 0 12px; font-size:10px; font-weight:500; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+  .lg-item{ display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:12px; font-size:13px; color:var(--text-dim); transition:all .6s ease; }
+  .lg-item i{ width:10px; height:10px; border-radius:50%; flex:none; }
+  .lg-item.on{ background:rgba(255,255,255,0.07); color:var(--text); box-shadow:inset 0 1px 0 rgba(255,255,255,0.1); }
+  .lg-item.on i{ box-shadow:0 0 12px currentColor; }
+  .lg-item .lg-dur{ margin-left:auto; font-size:11px; font-variant-numeric:tabular-nums; }
+  .legend-card .lg-note{ margin-top:12px; font-size:11px; line-height:1.5; color:var(--text-dim); }
+
+  /* marquee of recent sign changes */
+  html[data-view="aurora"] #marquee{
+    display:block; overflow:hidden; border-radius:999px; margin:0 0 30px; padding:12px 0;
+    background:var(--panel); border:1px solid var(--panel-border); box-shadow:var(--glass-shadow);
+    backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    mask-image:linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  }
+  .mq-track{ display:flex; gap:44px; width:max-content; animation:drift 60s linear infinite; font-size:13px; font-weight:300; white-space:nowrap; }
+  .mq-track span i{ display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:8px; vertical-align:1px; }
+  .mq-track b{ font-weight:500; }
+  @keyframes drift{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+
+  @media (max-width:860px){
+    html[data-view="aurora"] #hero{ grid-template-columns:1fr; grid-template-rows:auto; min-height:0; gap:22px; }
+    .hero-line.l1, .hero-line.l2, .orb-wrap, .hero-lede, .legend-card{ grid-column:1; grid-row:auto; }
+    .hero-line.l2{ justify-self:end; }
+    .legend-card{ justify-self:stretch; width:auto; margin-top:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .orb, .mq-track{ animation:none; }
+  }
 </style>
 </head>
 <body>
 <div class="scan"></div>
+<canvas id="auroraCanvas" aria-hidden="true"></canvas>
+<canvas id="sky" aria-hidden="true"></canvas>
 
 <header>
   <div>
@@ -215,6 +378,7 @@
   </div>
   <div class="hdr-right">
     <div id="heartbeat" style="display:none;"></div>
+    <button id="viewToggle" title="Switch between the classic and aurora views">Aurora view</button>
     <div id="clock">--:--:--</div>
     <div id="fileInfo">No log file connected</div>
     <button id="connectBtn">Connect Log File</button>
@@ -222,6 +386,36 @@
 </header>
 
 <main>
+  <section id="hero" aria-live="polite">
+    <h2 class="hero-line l1" id="heroL1">Bridge signs</h2>
+    <h2 class="hero-line l2" id="heroL2">awaiting data.</h2>
+    <div class="orb-wrap">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="dial-track" cx="100" cy="100" r="92"/>
+        <circle class="dial-prog" id="dialProg" cx="100" cy="100" r="92" transform="rotate(-90 100 100)"
+                stroke-dasharray="578.05" stroke-dashoffset="578.05"/>
+        <g id="dialTicks"></g>
+      </svg>
+      <div class="orb"></div>
+      <div class="orb-core"><div class="big" id="orbBig">--</div><div class="small" id="orbSmall">no data</div></div>
+    </div>
+    <div class="hero-lede">
+      <p id="heroLede">Waiting for the first sign check.</p>
+      <div class="hero-ctas">
+        <button class="primary" id="ctaHistory">View history</button>
+        <button id="ctaFaults">Comms faults</button>
+      </div>
+    </div>
+    <aside class="legend-card">
+      <h3>Signs are showing</h3>
+      <div class="lg-item" data-state="BOTH" style="color:var(--teal)"><i style="background:var(--teal)"></i><span>Both bridges available</span><span class="lg-dur"></span></div>
+      <div class="lg-item" data-state="POOLE" style="color:var(--violet)"><i style="background:var(--violet)"></i><span>Lift Poole Bridge</span><span class="lg-dur"></span></div>
+      <div class="lg-item" data-state="TWIN" style="color:var(--rose)"><i style="background:var(--rose)"></i><span>Lift Twin Sails Bridge</span><span class="lg-dur"></span></div>
+      <div class="lg-note" id="legendNote"></div>
+    </aside>
+  </section>
+  <div id="marquee" aria-label="Recent sign changes"><div class="mq-track" id="mqTrack"></div></div>
+
   <div class="summary-bar" id="summaryBar"></div>
   <div class="grid" id="grid">
     <div class="empty-state">
@@ -425,6 +619,7 @@ async function updateHeartbeatDisplay(){
     const ts = new Date(text);
     if (isNaN(ts.getTime())) throw new Error("bad timestamp");
 
+    lastHeartbeat = ts;
     const ageMs = Date.now() - ts;
     let cls, label;
     if (ageMs < HEARTBEAT_FRESH_MS){ cls = "fresh"; label = `Monitor active — checked ${fmtDuration(ageMs) || '0s'} ago`; }
@@ -434,6 +629,7 @@ async function updateHeartbeatDisplay(){
     el.className = cls;
     el.style.display = "flex";
     el.innerHTML = `<span class="dot"></span>${label}`;
+    renderHero();
   } catch (e){
     el.style.display = "none"; // heartbeat.txt not published yet -- don't show a false "dead" state
   }
@@ -477,6 +673,8 @@ function render(data){
     `;
     grid.appendChild(card);
   });
+
+  faultSummary = { up: upCount, total: SIGNS.length };
 
   summaryBar.innerHTML = `
     <div class="stat">
@@ -592,6 +790,7 @@ function renderSignMessages(){
   }
 
   renderHistory(allRuns, now, limitMs);
+  renderHero();
 }
 
 function renderHistory(allRuns, now, limitMs){
@@ -627,6 +826,200 @@ function renderHistory(allRuns, now, limitMs){
 
 ["fSign", "fState", "fLong"].forEach(id =>
   document.getElementById(id).addEventListener("change", renderSignMessages));
+
+// ---------- aurora view: hero, marquee, sky ----------
+const PHASE = { BOTH:"var(--teal)", POOLE:"var(--violet)", TWIN:"var(--rose)" };
+const DIAL_LEN = 2 * Math.PI * 92;
+let lastHeartbeat = null;   // set by updateHeartbeatDisplay
+let faultSummary = null;    // set by render()
+
+function isAurora(){ return document.documentElement.getAttribute("data-view") === "aurora"; }
+
+(function buildDialTicks(){
+  const g = document.getElementById("dialTicks");
+  let html = "";
+  for (let i = 0; i < 60; i++){
+    const a = (i / 60) * 2 * Math.PI - Math.PI / 2, major = i % 20 === 0;
+    const r1 = major ? 80 : 84, r2 = 88;
+    html += `<line class="dial-tick" x1="${100 + r1*Math.cos(a)}" y1="${100 + r1*Math.sin(a)}" x2="${100 + r2*Math.cos(a)}" y2="${100 + r2*Math.sin(a)}" ${major ? "" : 'opacity="0.45"'}/>`;
+  }
+  // dial = the stuck-alert limit; label the thirds
+  [["0 / 30", 0], ["10", 1/3], ["20", 2/3]].forEach(([t, f]) => {
+    const a = f * 2 * Math.PI - Math.PI / 2;
+    html += `<text class="dial-lbl" x="${100 + 71*Math.cos(a)}" y="${100 + 71*Math.sin(a) + 3}" text-anchor="middle">${t}</text>`;
+  });
+  g.innerHTML = html;
+})();
+
+function setIfChanged(el, prop, value){ if (el[prop] !== value) el[prop] = value; }
+
+function renderHero(){
+  if (!isAurora() || !signStates) return;
+  const now = new Date();
+  const limitMs = signStates.stuck_alert_minutes * 60000;
+  const hero = document.getElementById("hero");
+
+  const live = signStates.signs.map(s => {
+    const r = s.runs[s.runs.length - 1];
+    return r && !r[2] ? { name: s.name, state: r[0], start: new Date(r[1]), lowerBound: !!r[3] } : null;
+  }).filter(Boolean);
+  const states = [...new Set(live.map(c => c.state))];
+
+  let l1, l2, phase, key = null, ms = 0, lowerBound = false, breath = "8s";
+  if (!live.length){
+    l1 = "Bridge signs"; l2 = "awaiting data."; phase = "var(--text-dim)";
+  } else if (states.length > 1){
+    l1 = "Signs are"; l2 = "out of step."; phase = "var(--amber)"; breath = "4s";
+  } else {
+    key = states[0];
+    const earliest = live.reduce((a, b) => a.start < b.start ? a : b);
+    ms = Math.max(0, now - earliest.start); lowerBound = live.some(c => c.lowerBound);
+    const stuck = isLift(key) && ms >= limitMs;
+    phase = PHASE[key] || "var(--amber)";
+    if (key === "BOTH"){ l1 = "Both bridges"; l2 = "available."; }
+    else if (key === "POOLE"){ l1 = stuck ? "Poole lift" : "Poole Bridge"; l2 = stuck ? `on ${fmtDuration(ms)}.` : "lifting."; breath = stuck ? "3s" : "6s"; }
+    else if (key === "TWIN"){ l1 = stuck ? "Twin Sails lift" : "Twin Sails"; l2 = stuck ? `on ${fmtDuration(ms)}.` : "lifting."; breath = stuck ? "3s" : "6s"; }
+    else { l1 = "Unrecognised"; l2 = "sign message."; breath = "4s"; }
+  }
+
+  hero.style.setProperty("--phase", phase);
+  hero.style.setProperty("--breath", breath);
+  setIfChanged(document.getElementById("heroL1"), "textContent", l1);
+  setIfChanged(document.getElementById("heroL2"), "textContent", l2);
+  setIfChanged(document.getElementById("orbBig"), "textContent", key ? (lowerBound ? "≥" : "") + fmtDuration(ms) : "--");
+  setIfChanged(document.getElementById("orbSmall"), "textContent",
+    key ? `since ${live.reduce((a, b) => a.start < b.start ? a : b).start.toLocaleTimeString(undefined, {hour:"2-digit", minute:"2-digit"})}` : (live.length ? "mixed" : "no data"));
+
+  // dial fills towards the stuck-alert limit, only for lift messages
+  const frac = key && isLift(key) ? Math.min(1, ms / limitMs) : 0;
+  document.getElementById("dialProg").setAttribute("stroke-dashoffset", String(DIAL_LEN * (1 - frac)));
+
+  document.querySelectorAll(".lg-item").forEach(el => {
+    const on = el.dataset.state === key;
+    el.classList.toggle("on", on);
+    setIfChanged(el.querySelector(".lg-dur"), "textContent", on ? fmtDuration(ms) : "");
+  });
+  setIfChanged(document.getElementById("legendNote"), "textContent",
+    states.length > 1 ? live.map(c => `${c.name.replace(/^VMS /, "")}: ${stateText(c.state)}`).join(" · ")
+                      : `Lift messages on longer than ${signStates.stuck_alert_minutes} min send a Telegram alert.`);
+
+  const hbAge = lastHeartbeat ? fmtDuration(Date.now() - lastHeartbeat) + " ago" : "unknown";
+  const faults = faultSummary ? ` Comms: <b>${faultSummary.up} of ${faultSummary.total} online</b>.` : "";
+  let lede = `<b>${live.length} of ${signStates.signs.length} signs</b> reporting. Last checked ${hbAge}.${faults}`;
+  if (key && isLift(key) && ms >= limitMs){
+    lede = `Lift message has been on for <b>${lowerBound ? "at least " : ""}${fmtDuration(ms)}</b>, past the ${signStates.stuck_alert_minutes}-minute limit. Last checked ${hbAge}.`;
+  }
+  setIfChanged(document.getElementById("heroLede"), "innerHTML", lede);
+
+  renderMarquee();
+}
+
+function renderMarquee(){
+  // Recent changes, grouped when several signs changed at the same moment.
+  const groups = new Map();
+  signStates.signs.forEach(s => s.runs.forEach((r, i) => {
+    if (i === 0 || r[3]) return; // first run / after a gap: not a real observed change
+    const k = r[1] + "|" + r[0];
+    if (!groups.has(k)) groups.set(k, { t: new Date(r[1]), state: r[0], signs: [] });
+    groups.get(k).signs.push(s.name.replace(/^VMS /, ""));
+  }));
+  const items = [...groups.values()].sort((a, b) => b.t - a.t).slice(0, 12).map(g => {
+    const who = g.signs.length === signStates.signs.length ? "All signs" : g.signs.join(", ");
+    const col = PHASE[g.state] || "var(--amber)";
+    return `<span><i style="background:${col}"></i>${fmtTime(g.t)} · ${escapeHtml(who)} → <b>${escapeHtml(stateText(g.state))}</b></span>`;
+  });
+  const content = items.length ? items.join("") : `<span>No sign changes recorded yet.</span>`;
+  const track = document.getElementById("mqTrack");
+  const html = content + content; // doubled for a seamless loop
+  if (track.dataset.src !== html){ track.dataset.src = html; track.innerHTML = html; }
+}
+
+// gentle tilt on the fault cards
+document.addEventListener("pointermove", e => {
+  if (!isAurora()) return;
+  const card = e.target.closest && e.target.closest(".card");
+  document.querySelectorAll(".card").forEach(c => { if (c !== card){ c.style.removeProperty("--rx"); c.style.removeProperty("--ry"); } });
+  if (!card) return;
+  const b = card.getBoundingClientRect();
+  card.style.setProperty("--ry", `${((e.clientX - b.left) / b.width - 0.5) * 6}deg`);
+  card.style.setProperty("--rx", `${-((e.clientY - b.top) / b.height - 0.5) * 6}deg`);
+});
+
+// night sky: twinkling stars (full res) + three aurora curtains (quarter res, CSS-blurred)
+const Sky = (() => {
+  const sky = document.getElementById("sky"), au = document.getElementById("auroraCanvas");
+  const sc = sky.getContext("2d"), ac = au.getContext("2d");
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const curtains = [
+    { c: "45,226,196",  y: 0.20, amp: 0.07, f: 1.2, sp: 0.06,  ph: 0 },
+    { c: "123,92,255",  y: 0.32, amp: 0.09, f: 0.8, sp: 0.04,  ph: 2.1 },
+    { c: "255,111,168", y: 0.14, amp: 0.05, f: 1.6, sp: 0.05,  ph: 4.2 },
+  ];
+  let stars = [], raf = null, last = 0, W = 0, H = 0;
+
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    sky.width = W * dpr; sky.height = H * dpr; sc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    au.width = Math.ceil(W / 4); au.height = Math.ceil(H / 4);
+    stars = Array.from({ length: Math.round(W * H / 6500) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.2 + 0.3,
+      p: Math.random() * 6.28, s: 0.4 + Math.random() * 1.6,
+    }));
+  }
+  function draw(t){
+    const w = au.width, h = au.height;
+    ac.clearRect(0, 0, w, h);
+    ac.globalCompositeOperation = "lighter";
+    curtains.forEach(k => {
+      for (let x = 0; x <= w; x += 2){
+        const u = x / w;
+        const top = h * (k.y + k.amp * Math.sin(u * 6.28 * k.f + t * k.sp + k.ph) + 0.025 * Math.sin(u * 23 + t * k.sp * 3));
+        const len = h * (0.28 + 0.12 * Math.sin(u * 8 + t * k.sp * 2 + k.ph));
+        const a = 0.11 + 0.08 * Math.sin(u * 13 + t * k.sp * 4 + k.ph);
+        const g = ac.createLinearGradient(0, top, 0, top + len);
+        g.addColorStop(0, `rgba(${k.c},0)`); g.addColorStop(0.2, `rgba(${k.c},${a})`); g.addColorStop(1, `rgba(${k.c},0)`);
+        ac.fillStyle = g; ac.fillRect(x, top, 2, len);
+      }
+    });
+    ac.globalCompositeOperation = "source-over";
+
+    sc.clearRect(0, 0, W, H);
+    stars.forEach(s => {
+      sc.globalAlpha = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
+      sc.fillStyle = "#fff";
+      sc.fillRect(s.x, s.y, s.r, s.r);
+    });
+    sc.globalAlpha = 1;
+  }
+  function frame(ts){
+    raf = requestAnimationFrame(frame);
+    if (ts - last < 40) return; // ~25 fps is plenty for slow drift
+    last = ts; draw(ts / 1000);
+  }
+  function start(){
+    resize();
+    if (reduce){ draw(0); return; }
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function stop(){ if (raf) cancelAnimationFrame(raf); raf = null; }
+  window.addEventListener("resize", () => { if (isAurora()){ resize(); if (reduce) draw(0); } });
+  return { start, stop };
+})();
+
+function setView(v){
+  document.documentElement.setAttribute("data-view", v);
+  try { localStorage.setItem("vms-view", v); } catch (e) {}
+  document.getElementById("viewToggle").textContent = v === "aurora" ? "Classic view" : "Aurora view";
+  if (v === "aurora") Sky.start(); else Sky.stop();
+  renderSignMessages(); // re-measures the timeline axis for the new layout, and renders the hero
+}
+document.getElementById("viewToggle").addEventListener("click", () => setView(isAurora() ? "classic" : "aurora"));
+document.getElementById("ctaHistory").addEventListener("click", () =>
+  document.getElementById("signMessages").scrollIntoView({ behavior: "smooth" }));
+document.getElementById("ctaFaults").addEventListener("click", () =>
+  document.getElementById("summaryBar").scrollIntoView({ behavior: "smooth" }));
+setView(isAurora() ? "aurora" : "classic");
 
 // ---------- hosted mode (same-origin fetch, for when this page is served
 // over http/https rather than opened as a local file) ----------

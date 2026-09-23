@@ -51,6 +51,10 @@ def main():
     now = datetime.now(LONDON)
     heartbeat = read_time("heartbeat.txt")
     stopped = read_time("monitor_stopped.txt")
+    if os.environ.get("SEND_TEST") == "true":
+        send(f"VMS watchdog test: Telegram works. Last monitor check "
+             f"{heartbeat:%H:%M} ({int((now - heartbeat).total_seconds() // 60)} min ago)." if heartbeat
+             else "VMS watchdog test: Telegram works, but heartbeat.txt is missing.")
     if heartbeat is None:
         sys.exit("heartbeat.txt missing or unreadable")
 

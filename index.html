@@ -364,6 +364,63 @@
   @media (prefers-reduced-motion: reduce){
     .orb, .mq-track{ animation:none; }
   }
+
+  /* ---------- animated bridges (aurora view only) ---------- */
+  #bridges{ display:none; }
+  html[data-view="aurora"] #bridges{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap:18px; margin:0 0 34px; }
+  .bridge-card{
+    border-radius:22px; padding:18px 18px 16px; background:var(--panel); border:1px solid var(--panel-border);
+    box-shadow:var(--glass-shadow); backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+    transition:border-color .8s ease, box-shadow .8s ease;
+  }
+  .bridge-card.stuck{ border-color:rgba(255,111,168,0.6); box-shadow:var(--glass-shadow), 0 0 30px rgba(255,111,168,0.18); }
+  .bridge-head{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .bridge-head h3{ margin:0; font-size:20px; font-weight:300; }
+  .bridge-head h3 small{ font-size:11px; color:var(--text-dim); letter-spacing:1px; margin-left:6px; }
+  .bridge-status{ font-size:12px; padding:5px 12px; border-radius:999px; border:1px solid var(--panel-border); color:var(--text-dim); }
+  .bridge-card[data-state="lifting"] .bridge-status{ color:var(--bcol); border-color:var(--bcol); }
+  .bridge-card.stuck .bridge-status{ color:var(--rose); border-color:var(--rose); }
+  .bridge-scene{ display:block; width:100%; height:auto; border-radius:14px; background:linear-gradient(180deg, rgba(7,11,31,0.15), rgba(7,11,31,0.55)); }
+  .bridge-foot{ display:flex; align-items:center; gap:12px; margin-top:12px; }
+  .bridge-photo{ width:92px; height:62px; object-fit:cover; border-radius:10px; border:1px solid var(--panel-border); flex:none; }
+  .bridge-credit{ flex:1; font-size:10.5px; line-height:1.5; color:var(--text-dim); min-width:0; }
+  .bridge-credit a{ color:var(--text-dim); }
+  .bridge-foot button{ padding:7px 14px; font-size:11px; flex:none; }
+
+  /* moving parts: ease like hydraulics over ~4s (the real lift takes about 2 min) */
+  .leaf, .sail{ transition:transform 4.2s cubic-bezier(.5,0,.25,1); }
+  .span-deck{ transition:opacity 1.2s ease; }
+  #leafL{ transform-origin:178px 200px; }
+  #leafR{ transform-origin:422px 200px; }
+  .bridge-card[data-state="lifting"] #leafL{ transform:rotate(-74deg); }
+  .bridge-card[data-state="lifting"] #leafR{ transform:rotate(74deg); }
+  #sailL, #sailR{ transform-origin:0 201px; transform:scaleY(0.02); }
+  .bridge-card[data-state="lifting"] #sailL, .bridge-card[data-state="lifting"] #sailR{ transform:scaleY(1); }
+  .bridge-card[data-state="lifting"] .span-deck{ opacity:0; transition-delay:.2s; }
+
+  .traffic, .queue, .boat{ transition:opacity 1s ease; }
+  .queue, .boat{ opacity:0; }
+  .bridge-card[data-state="lifting"] .traffic{ opacity:0; }
+  .bridge-card[data-state="lifting"] .queue{ opacity:1; }
+  .bridge-card[data-state="lifting"] .boat{ opacity:1; transition-delay:2.5s; }
+  .drive-r{ animation:driveR 9s linear infinite; }
+  .drive-l{ animation:driveL 11s linear infinite; }
+  .sailing{ animation:boatGo 17s linear infinite; }
+  @keyframes driveR{ from{ transform:translateX(-40px); } to{ transform:translateX(640px); } }
+  @keyframes driveL{ from{ transform:translateX(640px); } to{ transform:translateX(-40px); } }
+  @keyframes boatGo{ from{ transform:translateX(-110px); } to{ transform:translateX(700px); } }
+  .warn{ fill:#3a1016; }
+  .bridge-card[data-state="lifting"] .warn{ fill:#ff3b4e; animation:warnFlash 1s steps(2) infinite; }
+  .bridge-card[data-state="lifting"] .warn.b{ animation-delay:.5s; }
+  @keyframes warnFlash{ 0%{ opacity:1; } 100%{ opacity:0.15; } }
+  .shimmer{ animation:shimmer 6s ease-in-out infinite alternate; }
+  @keyframes shimmer{ from{ transform:translateX(-8px); opacity:.35; } to{ transform:translateX(8px); opacity:.8; } }
+  .dmx{ fill:var(--bcol-live, var(--teal)); transition:fill 1.2s ease; }
+  .mast-tip{ fill:#fff; filter:drop-shadow(0 0 4px #fff); }
+  @media (prefers-reduced-motion: reduce){
+    .drive-r, .drive-l, .sailing, .shimmer, .bridge-card[data-state="lifting"] .warn{ animation:none; }
+    .leaf, .sail{ transition-duration:.01s; }
+  }
 </style>
 </head>
 <body>
@@ -415,6 +472,184 @@
     </aside>
   </section>
   <div id="marquee" aria-label="Recent sign changes"><div class="mq-track" id="mqTrack"></div></div>
+
+  <!-- Animated bridges, drawn from the reference photos. They follow what the
+       signs are showing, not a live feed of the bridges themselves. -->
+  <section id="bridges" aria-label="Bridges">
+    <!-- Poole Bridge, seen from Poole Quay as in the photos -->
+    <article class="bridge-card" id="bridgePoole" data-state="closed" style="--bcol:var(--violet)">
+      <div class="bridge-head">
+        <h3>Poole Bridge <small>1927 · double-leaf bascule</small></h3>
+        <span class="bridge-status" id="poolStatus">Waiting for sign data</span>
+      </div>
+      <svg class="bridge-scene" viewBox="0 0 600 300" role="img" aria-label="Animated drawing of Poole Bridge">
+        <defs>
+          <linearGradient id="pbTower" x1="0" x2="1"><stop offset="0" stop-color="#5fae9b"/><stop offset=".55" stop-color="#7fcab5"/><stop offset="1" stop-color="#4b8f80"/></linearGradient>
+          <linearGradient id="pbLeaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3563c4"/><stop offset="1" stop-color="#1c3a80"/></linearGradient>
+          <linearGradient id="pbWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f2447"/><stop offset="1" stop-color="#050b1e"/></linearGradient>
+          <radialGradient id="pbFlood" cx=".5" cy="1" r=".9"><stop offset="0" stop-color="#fff3c4" stop-opacity=".35"/><stop offset="1" stop-color="#fff3c4" stop-opacity="0"/></radialGradient>
+        </defs>
+        <!-- quayside sheds behind -->
+        <path d="M0 196 L0 150 L50 132 L96 148 L96 196Z" fill="#101a33"/>
+        <path d="M504 196 L504 146 L550 128 L600 146 L600 196Z" fill="#101a33"/>
+        <path d="M200 196 L200 158 L300 140 L400 158 L400 196Z" fill="#0d1630"/>
+        <g fill="#ffd98a" opacity=".55"><rect x="22" y="170" width="6" height="4"/><rect x="60" y="178" width="6" height="4"/><rect x="530" y="168" width="6" height="4"/><rect x="570" y="178" width="6" height="4"/><rect x="250" y="172" width="5" height="3"/><rect x="340" y="176" width="5" height="3"/></g>
+        <!-- water -->
+        <rect x="0" y="212" width="600" height="88" fill="url(#pbWater)"/>
+        <g class="shimmer" stroke="#6fa8ff" stroke-opacity=".35" stroke-width="1.2" stroke-linecap="round">
+          <path d="M40 236h60M150 252h40M260 240h80M400 256h50M500 238h60M90 272h70M320 280h60M470 276h40"/>
+        </g>
+        <rect x="96" y="214" width="82" height="50" fill="#7fcab5" opacity=".07"/>
+        <rect x="422" y="214" width="82" height="50" fill="#7fcab5" opacity=".07"/>
+        <!-- timber fenders and piles -->
+        <g fill="#2b2a2e"><rect x="86" y="204" width="100" height="10"/><rect x="414" y="204" width="100" height="10"/>
+          <rect x="92" y="204" width="5" height="26"/><rect x="116" y="204" width="5" height="28"/><rect x="140" y="204" width="5" height="26"/><rect x="164" y="204" width="5" height="28"/>
+          <rect x="432" y="204" width="5" height="28"/><rect x="456" y="204" width="5" height="26"/><rect x="480" y="204" width="5" height="28"/><rect x="504" y="204" width="5" height="26"/></g>
+        <!-- fixed approach spans -->
+        <rect x="0" y="196" width="96" height="10" fill="#3b4150"/><rect x="504" y="196" width="96" height="10" fill="#3b4150"/>
+        <path d="M0 196h96M504 196h96" stroke="#9aa6b8" stroke-width="1" opacity=".6"/>
+        <!-- traffic crossing while the bridge is down -->
+        <g class="traffic">
+          <g transform="translate(0,187)"><g class="drive-r"><rect width="18" height="7" rx="2.5" fill="#20283a"/><rect x="4" y="-3" width="9" height="4" rx="1.5" fill="#2c3650"/><circle cx="17.5" cy="4.5" r="1.4" fill="#fff6c8"/><circle cx=".6" cy="4.5" r="1.1" fill="#ff4050"/></g></g>
+          <g transform="translate(0,188)"><g class="drive-l" style="animation-delay:-4s"><rect width="22" height="8" rx="2.5" fill="#39425a"/><rect x="6" y="-3" width="10" height="4" rx="1.5" fill="#46506a"/><circle cx=".6" cy="5" r="1.4" fill="#fff6c8"/><circle cx="21.4" cy="5" r="1.1" fill="#ff4050"/></g></g>
+        </g>
+        <!-- traffic held at the signals while it lifts -->
+        <g class="queue">
+          <g transform="translate(62,188)"><rect width="18" height="7" rx="2.5" fill="#20283a"/><circle cx="17.5" cy="4.5" r="1.4" fill="#fff6c8"/><circle cx=".6" cy="4.5" r="1.1" fill="#ff4050"/></g>
+          <g transform="translate(36,188)"><rect width="20" height="7" rx="2.5" fill="#2e3a55"/><circle cx="19.5" cy="4.5" r="1.4" fill="#fff6c8"/><circle cx=".6" cy="4.5" r="1.1" fill="#ff4050"/></g>
+          <g transform="translate(518,188)"><rect width="22" height="8" rx="2.5" fill="#39425a"/><circle cx=".6" cy="5" r="1.4" fill="#fff6c8"/><circle cx="21.4" cy="5" r="1.1" fill="#ff4050"/></g>
+        </g>
+        <!-- the two leaves: teal lattice girder on top, blue deck, ribbed blue underside, hazard marks at the tips -->
+        <g class="leaf" id="leafL">
+          <path d="M178.0 195 L190.3 180 L202.6 195 L214.9 180 L227.2 195 L239.5 180 L251.8 195 L264.1 180 L276.4 195 L288.7 180 L301.0 195 M178 180 H301" stroke="#2fb3a3" stroke-width="2.4" fill="none" stroke-linejoin="round"/>
+          <path d="M178 174 H301" stroke="#c7d3e0" stroke-width="1" opacity=".7"/>
+          <rect x="178" y="195" width="123" height="10" fill="url(#pbLeaf)"/>
+          <rect x="178" y="205" width="123" height="10" fill="#17307a"/>
+          <path d="M190 205 v9M202 205 v9M214 205 v9M226 205 v9M238 205 v9M250 205 v9M262 205 v9M274 205 v9M286 205 v9" stroke="#0e1f52" stroke-width="1.6"/>
+          <path d="M294 196 v18" stroke="#f2c230" stroke-width="3" stroke-dasharray="3 3"/>
+        </g>
+        <g class="leaf" id="leafR">
+          <path d="M299.0 195 L311.3 180 L323.6 195 L335.9 180 L348.2 195 L360.5 180 L372.8 195 L385.1 180 L397.4 195 L409.7 180 L422.0 195 M299 180 H422" stroke="#2fb3a3" stroke-width="2.4" fill="none" stroke-linejoin="round"/>
+          <path d="M299 174 H422" stroke="#c7d3e0" stroke-width="1" opacity=".7"/>
+          <rect x="299" y="195" width="123" height="10" fill="url(#pbLeaf)"/>
+          <rect x="299" y="205" width="123" height="10" fill="#17307a"/>
+          <path d="M311 205 v9M323 205 v9M335 205 v9M347 205 v9M359 205 v9M371 205 v9M383 205 v9M395 205 v9M407 205 v9" stroke="#0e1f52" stroke-width="1.6"/>
+          <path d="M306 196 v18" stroke="#f2c230" stroke-width="3" stroke-dasharray="3 3"/>
+        </g>
+        <!-- towers: copper-green cladding, blue panel, coat of arms, signals -->
+        <g>
+          <rect x="96" y="118" width="82" height="96" fill="url(#pbTower)"/>
+          <rect x="96" y="118" width="82" height="96" fill="url(#pbFlood)"/>
+          <rect x="92" y="114" width="90" height="6" fill="#5aa593"/>
+          <rect x="154" y="140" width="16" height="50" fill="#2e5ea8" opacity=".85"/>
+          <path d="M116 146 h18 v14 q0 10 -9 14 q-9 -4 -9 -14z" fill="#1d3f7a" stroke="#e8c45a" stroke-width="1.2"/>
+          <path d="M119 152 h12 M119 158 h12" stroke="#e8c45a" stroke-width="1.4"/>
+          <rect x="106" y="126" width="5" height="9" fill="#0b1426" opacity=".8"/><rect x="142" y="126" width="5" height="9" fill="#0b1426" opacity=".8"/>
+          <rect x="124" y="190" width="10" height="24" fill="#3d6e62"/>
+          <rect x="164" y="100" width="9" height="18" rx="2" fill="#141a26"/><circle class="warn" cx="168.5" cy="105" r="2.6"/><circle class="warn b" cx="168.5" cy="112.5" r="2.6"/>
+        </g>
+        <g>
+          <rect x="422" y="110" width="82" height="104" fill="url(#pbTower)"/>
+          <rect x="422" y="110" width="82" height="104" fill="url(#pbFlood)"/>
+          <rect x="418" y="106" width="90" height="6" fill="#5aa593"/>
+          <rect x="430" y="136" width="16" height="54" fill="#2e5ea8" opacity=".85"/>
+          <path d="M458 140 h20 v16 q0 11 -10 15 q-10 -4 -10 -15z" fill="#1d3f7a" stroke="#e8c45a" stroke-width="1.2"/>
+          <path d="M461 147 h14 M461 154 h14" stroke="#e8c45a" stroke-width="1.4"/>
+          <rect x="484" y="120" width="5" height="10" fill="#0b1426" opacity=".8"/><rect x="452" y="118" width="5" height="10" fill="#0b1426" opacity=".8"/>
+          <rect x="474" y="188" width="11" height="26" fill="#3d6e62"/>
+          <rect x="427" y="92" width="9" height="18" rx="2" fill="#141a26"/><circle class="warn" cx="431.5" cy="97" r="2.6"/><circle class="warn b" cx="431.5" cy="104.5" r="2.6"/>
+        </g>
+        <!-- a boat passes through while it's up -->
+        <g class="boat"><g transform="translate(0,226)"><g class="sailing">
+          <path d="M0 10 L78 10 L70 22 L8 22Z" fill="#1d2440"/><path d="M0 10 L78 10" stroke="#e9eef7" stroke-width="1.4"/>
+          <rect x="18" y="-2" width="36" height="12" rx="2" fill="#e56a2c"/><rect x="22" y="1" width="28" height="4" fill="#ffe2b8" opacity=".85"/>
+          <path d="M36 -2 V-24" stroke="#c9d2e0" stroke-width="1.2"/><circle cx="36" cy="-25" r="1.6" fill="#fff"/>
+          <circle cx="2" cy="12" r="1.5" fill="#ff4050"/><circle cx="76" cy="12" r="1.5" fill="#41ff8b"/>
+          <path d="M-6 24 q-18 1 -34 -1" stroke="#9fc4ff" stroke-opacity=".45" fill="none"/>
+        </g></g></g>
+      </svg>
+      <div class="bridge-foot">
+        <img class="bridge-photo" id="poolPhoto" src="img/poole-closed.jpg" alt="Photo of Poole Bridge" loading="lazy">
+        <div class="bridge-credit" id="poolCredit"></div>
+        <button data-preview="POOLE">Preview lift</button>
+      </div>
+    </article>
+
+    <!-- Twin Sails Bridge, seen from the water as in the raised photo -->
+    <article class="bridge-card" id="bridgeTwin" data-state="closed" style="--bcol:var(--rose)">
+      <div class="bridge-head">
+        <h3>Twin Sails Bridge <small>2012 · split triangular bascule</small></h3>
+        <span class="bridge-status" id="twinStatus">Waiting for sign data</span>
+      </div>
+      <svg class="bridge-scene" viewBox="0 0 600 300" role="img" aria-label="Animated drawing of the Twin Sails Bridge">
+        <defs>
+          <linearGradient id="tsSailL" x1="0" x2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#b9c4d4"/></linearGradient>
+          <linearGradient id="tsSailR" x1="0" x2="1"><stop offset="0" stop-color="#2b3852"/><stop offset="1" stop-color="#4c5d7c"/></linearGradient>
+          <linearGradient id="tsDeck" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe6ef"/><stop offset="1" stop-color="#7d8aa0"/></linearGradient>
+          <linearGradient id="tsWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f2447"/><stop offset="1" stop-color="#050b1e"/></linearGradient>
+        </defs>
+        <!-- far shore -->
+        <path d="M0 214 Q80 204 160 210 T330 208 T600 206 L600 216 L0 216Z" fill="#0c152c"/>
+        <g fill="#ffd98a" opacity=".5"><circle cx="40" cy="209" r="1"/><circle cx="120" cy="208" r="1"/><circle cx="470" cy="206" r="1"/><circle cx="540" cy="207" r="1"/></g>
+        <!-- water -->
+        <rect x="0" y="216" width="600" height="84" fill="url(#tsWater)"/>
+        <g class="shimmer" stroke="#6fa8ff" stroke-opacity=".35" stroke-width="1.2" stroke-linecap="round">
+          <path d="M30 240h50M130 258h60M240 246h40M330 262h70M450 244h50M520 270h50M80 282h60M380 286h50"/>
+        </g>
+        <!-- piers -->
+        <g fill="#8b93a3"><rect x="226" y="205" width="48" height="30"/><rect x="326" y="205" width="48" height="30"/>
+          <rect x="90" y="208" width="18" height="18" opacity=".8"/><rect x="492" y="208" width="18" height="18" opacity=".8"/></g>
+        <g fill="#8b93a3" opacity=".12"><rect x="226" y="236" width="48" height="24"/><rect x="326" y="236" width="48" height="24"/></g>
+        <!-- grey light towers on the fixed spans -->
+        <g fill="#6f7888"><rect x="160" y="160" width="7" height="40" rx="3"/><rect x="433" y="160" width="7" height="40" rx="3"/></g>
+        <circle class="warn" cx="163.5" cy="166" r="2.2"/><circle class="warn b" cx="436.5" cy="166" r="2.2"/>
+        <!-- fixed approach spans, gently arched, with the colour-changing balustrade lights -->
+        <path d="M0 214 Q120 199 250 197 L250 205 Q120 207 0 222Z" fill="url(#tsDeck)"/>
+        <path d="M600 214 Q480 199 350 197 L350 205 Q480 207 600 222Z" fill="url(#tsDeck)"/>
+        <g class="dmx"><circle cx="30" cy="210" r="1.3"/><circle cx="70" cy="206" r="1.3"/><circle cx="110" cy="203" r="1.3"/><circle cx="150" cy="200.5" r="1.3"/><circle cx="190" cy="198.5" r="1.3"/><circle cx="230" cy="197.3" r="1.3"/>
+          <circle cx="370" cy="197.3" r="1.3"/><circle cx="410" cy="198.5" r="1.3"/><circle cx="450" cy="200.5" r="1.3"/><circle cx="490" cy="203" r="1.3"/><circle cx="530" cy="206" r="1.3"/><circle cx="570" cy="210" r="1.3"/></g>
+        <!-- lifting span when down: the two leaves lie flat as one deck -->
+        <g class="span-deck"><rect x="250" y="197" width="100" height="8" fill="url(#tsDeck)"/><g class="dmx"><circle cx="270" cy="196.6" r="1.3"/><circle cx="300" cy="196.6" r="1.3"/><circle cx="330" cy="196.6" r="1.3"/></g></g>
+        <!-- traffic -->
+        <g class="traffic">
+          <g transform="translate(0,190)"><g class="drive-r" style="animation-duration:10s"><rect width="16" height="6" rx="2" fill="#20283a"/><circle cx="15.5" cy="3.8" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.8" r="1" fill="#ff4050"/></g></g>
+          <g transform="translate(0,191)"><g class="drive-l" style="animation-duration:12s;animation-delay:-6s"><rect width="18" height="6" rx="2" fill="#3a4560"/><circle cx=".6" cy="3.8" r="1.3" fill="#fff6c8"/><circle cx="17.4" cy="3.8" r="1" fill="#ff4050"/></g></g>
+        </g>
+        <g class="queue">
+          <g transform="translate(186,190)"><rect width="16" height="6" rx="2" fill="#20283a"/><circle cx="15.5" cy="3.8" r="1.3" fill="#fff6c8"/></g>
+          <g transform="translate(162,192)"><rect width="18" height="6" rx="2" fill="#2e3a55"/><circle cx="17.5" cy="3.8" r="1.3" fill="#fff6c8"/></g>
+          <g transform="translate(398,190)"><rect width="18" height="6" rx="2" fill="#3a4560"/><circle cx=".6" cy="3.8" r="1.3" fill="#fff6c8"/></g>
+        </g>
+        <!-- the sails: each triangular leaf rises from its pier, mast along its edge with a white LED tip -->
+        <g class="sail" id="sailL">
+          <path d="M252 201 L258 52 L300 201Z" fill="url(#tsSailL)"/>
+          <path d="M252 201 L258 52" stroke="#ffffff" stroke-width="2.5"/>
+          <g stroke="#9aa6b8" stroke-width=".8"><path d="M253 180h8M253.8 160h9M254.6 140h10M255.4 120h11M256.2 100h12M257 80h12"/></g>
+          <path d="M250 201 L246 8" stroke="#e9eef6" stroke-width="1.6"/>
+          <circle class="mast-tip" cx="246" cy="8" r="2.4"/>
+        </g>
+        <g class="sail" id="sailR">
+          <path d="M348 201 L342 52 L300 201Z" fill="url(#tsSailR)"/>
+          <path d="M348 201 L342 52" stroke="#dfe6ef" stroke-width="2.5"/>
+          <g stroke="#8793aa" stroke-width=".8"><path d="M339 180h8M338.2 160h9M337.4 140h10M336.6 120h11M335.8 100h12M335 80h12"/></g>
+          <path d="M350 201 L354 8" stroke="#e9eef6" stroke-width="1.6"/>
+          <circle class="mast-tip" cx="354" cy="8" r="2.4"/>
+        </g>
+        <!-- a boat through the channel while the sails are up -->
+        <g class="boat"><g transform="translate(0,230)"><g class="sailing" style="animation-duration:19s;animation-delay:-3s">
+          <path d="M0 8 L70 8 L63 19 L7 19Z" fill="#1d2440"/><path d="M0 8 L70 8" stroke="#e9eef7" stroke-width="1.3"/>
+          <rect x="14" y="-3" width="32" height="11" rx="2" fill="#e56a2c"/><rect x="18" y="0" width="24" height="4" fill="#ffe2b8" opacity=".85"/>
+          <path d="M32 -3 V-22" stroke="#c9d2e0" stroke-width="1.2"/><circle cx="32" cy="-23" r="1.5" fill="#fff"/>
+          <circle cx="2" cy="10" r="1.4" fill="#ff4050"/><circle cx="68" cy="10" r="1.4" fill="#41ff8b"/>
+        </g></g></g>
+      </svg>
+      <div class="bridge-foot">
+        <img class="bridge-photo" id="twinPhoto" src="img/twinsails-closed.jpg" alt="Photo of the Twin Sails Bridge" loading="lazy">
+        <div class="bridge-credit" id="twinCredit"></div>
+        <button data-preview="TWIN">Preview lift</button>
+      </div>
+    </article>
+  </section>
 
   <div class="summary-bar" id="summaryBar"></div>
   <div class="grid" id="grid">
@@ -913,7 +1148,74 @@ function renderHero(){
   setIfChanged(document.getElementById("heroLede"), "innerHTML", lede);
 
   renderMarquee();
+  renderBridges(live, now, limitMs);
 }
+
+// ---------- animated bridges ----------
+// Each bridge is drawn "lifting" while most reporting signs show its lift
+// message, or for a short while after "Preview lift" is pressed.
+const BRIDGE_VIEWS = {
+  POOLE: { card: "bridgePoole", status: "poolStatus", photo: "poolPhoto", credit: "poolCredit", name: "Poole Bridge",
+    photos: {
+      closed: { src: "img/poole-closed.jpg", by: "Jim Linwood", lic: "CC BY 2.0", url: "https://commons.wikimedia.org/wiki/File:Poole_Lifting_Bridge.jpg" },
+      lifting: { src: "img/poole-raised.jpg", by: "Peter Elsdon", lic: "CC BY-SA 2.0", url: "https://commons.wikimedia.org/wiki/File:Poole_Bridge_-_geograph.org.uk_-_1759548.jpg" },
+    } },
+  TWIN: { card: "bridgeTwin", status: "twinStatus", photo: "twinPhoto", credit: "twinCredit", name: "Twin Sails Bridge",
+    photos: {
+      closed: { src: "img/twinsails-closed.jpg", by: "jeffowenphotos", lic: "CC BY 2.0", url: "https://commons.wikimedia.org/wiki/File:024_The_Twin_Sails_Bridge,_Poole_Harbour,_Dorset.jpg" },
+      lifting: { src: "img/twinsails-raised.jpg", by: "jeffowenphotos", lic: "CC BY 2.0", url: "https://commons.wikimedia.org/wiki/File:022_The_Twin_Sails_Bridge,_Poole_Harbour,_Dorset.jpg" },
+    } },
+};
+const PREVIEW_MS = 15000;
+const previewUntil = { POOLE: 0, TWIN: 0 };
+let lastBridgeArgs = [[], new Date(), 30 * 60000];
+
+function renderBridges(live, now, limitMs){
+  lastBridgeArgs = [live, now, limitMs];
+  Object.entries(BRIDGE_VIEWS).forEach(([key, v]) => {
+    const card = document.getElementById(v.card);
+    const showing = live.filter(c => c.state === key);
+    const liveLift = live.length > 0 && showing.length > live.length / 2;
+    const preview = Date.now() < previewUntil[key];
+    const state = liveLift || preview ? "lifting" : "closed";
+    if (card.dataset.state !== state) card.dataset.state = state;
+
+    let status;
+    let stuck = false;
+    if (liveLift){
+      const since = showing.reduce((a, b) => a.start < b.start ? a : b).start;
+      const ms = Math.max(0, now - since);
+      stuck = ms >= limitMs;
+      status = `Signs: lifting · ${fmtDuration(ms)}${stuck ? " (over limit)" : ""}`;
+    } else if (preview){
+      status = "Preview of a lift";
+    } else {
+      status = live.length ? "Down · open to traffic" : "No sign data";
+    }
+    card.classList.toggle("stuck", stuck);
+    setIfChanged(document.getElementById(v.status), "textContent", status);
+
+    const p = v.photos[state];
+    const img = document.getElementById(v.photo);
+    if (!img.src.endsWith(p.src)) img.src = p.src;
+    img.alt = `Photo of ${v.name} ${state === "lifting" ? "raised" : "down"}`;
+    setIfChanged(document.getElementById(v.credit), "innerHTML",
+      `Real photo (${state === "lifting" ? "raised" : "down"}): <a href="${p.url}" target="_blank" rel="noopener">${p.by}</a>, ${p.lic}.<br>Drawing follows what the signs show.`);
+  });
+  // balustrade lights on the Twin Sails take the colour of the current sign message
+  const states = [...new Set(live.map(c => c.state))];
+  document.getElementById("bridgeTwin").style.setProperty("--bcol-live", states.length === 1 ? (PHASE[states[0]] || "var(--amber)") : "var(--amber)");
+}
+
+document.querySelectorAll("[data-preview]").forEach(btn => btn.addEventListener("click", () => {
+  const key = btn.dataset.preview;
+  previewUntil[key] = Date.now() + PREVIEW_MS;
+  renderBridges(...lastBridgeArgs);
+  setTimeout(() => renderBridges(...lastBridgeArgs), PREVIEW_MS + 50);
+}));
+// preload the raised photos so the swap is instant
+Object.values(BRIDGE_VIEWS).forEach(v => { const i = new Image(); i.src = v.photos.lifting.src; });
+renderBridges(...lastBridgeArgs);
 
 function renderMarquee(){
   // Recent changes, grouped when several signs changed at the same moment.

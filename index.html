@@ -158,6 +158,46 @@
   }
   .empty-state h2{ color:var(--cyan); letter-spacing:2px; font-size:16px; text-transform:uppercase; }
 
+  /* ---------- sign messages section ---------- */
+  .section-title{
+    margin:38px 0 6px; font-size:14px; letter-spacing:3px; text-transform:uppercase; color:var(--text);
+  }
+  .section-sub{ font-size:11px; color:var(--text-dim); letter-spacing:1px; margin-bottom:16px; }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font-size:11px; color:var(--text-dim); margin-bottom:14px; }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .sw{ width:12px; height:8px; border-radius:2px; display:inline-block; }
+  .st-BOTH{ background:var(--green); }
+  .st-POOLE{ background:var(--cyan); }
+  .st-TWIN{ background:var(--amber); }
+  .st-UNKNOWN{ background:#9a7cff; }
+  .st-NODATA{ background:rgba(255,255,255,0.07); }
+
+  .msg-row{
+    display:grid; grid-template-columns:minmax(160px,220px) minmax(200px,300px) 1fr; gap:14px; align-items:center;
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:4px;
+    padding:12px 16px; margin-bottom:8px;
+  }
+  .msg-row.stuck{ box-shadow:inset 0 0 0 1px rgba(255,47,110,0.5); }
+  .msg-name{ font-size:13px; font-weight:600; }
+  .msg-state{ font-size:13px; }
+  .msg-state .since{ display:block; font-size:11px; color:var(--text-dim); margin-top:3px; }
+  .msg-row.stuck .since{ color:var(--magenta); }
+  .timeline{ position:relative; height:14px; border-radius:3px; background:rgba(255,255,255,0.04); overflow:hidden; }
+  .timeline div{ position:absolute; top:0; bottom:0; }
+  .tl-axis{ display:flex; justify-content:space-between; font-size:9px; color:var(--text-dim); margin-top:3px; }
+  @media (max-width:720px){ .msg-row{ grid-template-columns:1fr; } }
+
+  .filters{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:22px 0 10px; font-size:11px; color:var(--text-dim); }
+  .filters select, .filters label{ font-family:inherit; font-size:11px; color:var(--text); }
+  .filters select{ background:var(--panel); border:1px solid var(--panel-border); padding:6px 8px; border-radius:2px; }
+  .table-wrap{ overflow-x:auto; border:1px solid var(--panel-border); border-radius:4px; max-height:480px; overflow-y:auto; }
+  table.hist{ width:100%; border-collapse:collapse; font-size:12px; }
+  table.hist th{ position:sticky; top:0; background:#0a1322; text-align:left; font-weight:600; font-size:10px;
+    letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); padding:9px 12px; }
+  table.hist td{ padding:8px 12px; border-top:1px solid var(--panel-border); white-space:nowrap; }
+  table.hist tr.long td{ color:var(--magenta); }
+  table.hist td .sw{ margin-right:7px; }
+
   footer{
     position:relative; z-index:2;
     padding:16px 28px; color:var(--text-dim); font-size:10px;
@@ -171,7 +211,7 @@
 <header>
   <div>
     <h1>BRIDGE VMS <span class="accent">STATUS</span></h1>
-    <div class="sub">POOLE LIFTING BRIDGE &mdash; COMMS FAULT MONITOR</div>
+    <div class="sub">POOLE LIFTING BRIDGE &mdash; COMMS FAULT &amp; SIGN MESSAGE MONITOR</div>
   </div>
   <div class="hdr-right">
     <div id="heartbeat" style="display:none;"></div>
@@ -189,6 +229,40 @@
       <p>Click "Connect Log File" and select <b>fault_log.csv</b><br>to begin monitoring.</p>
     </div>
   </div>
+
+  <section id="signMessages" style="display:none;">
+    <h2 class="section-title">Sign Messages</h2>
+    <div class="section-sub" id="msgSub"></div>
+    <div class="legend">
+      <span><i class="sw st-BOTH"></i>Both bridges available</span>
+      <span><i class="sw st-POOLE"></i>Lift Poole Bridge</span>
+      <span><i class="sw st-TWIN"></i>Lift Twin Sails Bridge</span>
+      <span><i class="sw st-UNKNOWN"></i>Unrecognised message</span>
+      <span><i class="sw st-NODATA"></i>No data</span>
+    </div>
+    <div id="msgRows"></div>
+    <div class="tl-axis" id="tlAxis"></div>
+
+    <div class="filters">
+      <span>History:</span>
+      <select id="fSign"><option value="">All signs</option></select>
+      <select id="fState">
+        <option value="">All messages</option>
+        <option value="LIFT">Lift messages only</option>
+        <option value="BOTH">Both bridges available</option>
+        <option value="POOLE">Lift Poole Bridge</option>
+        <option value="TWIN">Lift Twin Sails Bridge</option>
+      </select>
+      <label><input type="checkbox" id="fLong"> Only lift messages over the alert limit</label>
+      <span id="histCount"></span>
+    </div>
+    <div class="table-wrap">
+      <table class="hist">
+        <thead><tr><th>Sign</th><th>Message shown</th><th>From</th><th>To</th><th>Duration</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 
 <footer id="footerNote">
@@ -433,6 +507,127 @@ function renderEmpty(msg){
   document.getElementById("grid").innerHTML = `<div class="empty-state"><h2>${msg}</h2></div>`;
 }
 
+// ---------- sign messages (sign_states.json, written by vms_fault_monitor.py) ----------
+// Each run is [state, start, end|null, lowerBound, gapAfter]. end=null means
+// it's what the sign shows now. lowerBound = the run may have started
+// earlier than the monitor can see (monitor start or missing data).
+const TIMELINE_HOURS = 24;
+let signStates = null;
+
+function stateClass(state){ return state.startsWith("UNKNOWN:") ? "st-UNKNOWN" : `st-${state}`; }
+function stateText(state){
+  if (state.startsWith("UNKNOWN:")) return `Unrecognised message (${state.slice(8)})`;
+  return (signStates && signStates.labels[state]) || state;
+}
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function isLift(state){ return state === "POOLE" || state === "TWIN"; }
+
+async function fetchSignStates(){
+  try {
+    const res = await fetch("sign_states.json", { cache: "no-store" });
+    if (!res.ok) return;
+    signStates = await res.json();
+  } catch (e){ /* not published yet -- section stays hidden */ }
+}
+
+function renderSignMessages(){
+  if (!signStates) return;
+  const now = new Date();
+  const limitMs = signStates.stuck_alert_minutes * 60000;
+  const tlStart = new Date(now - TIMELINE_HOURS * 3600000);
+  document.getElementById("signMessages").style.display = "block";
+  document.getElementById("msgSub").textContent =
+    `What each sign has been displaying, from its last 10 messages checked every cycle. ` +
+    `Lift messages on for over ${signStates.stuck_alert_minutes} min are highlighted and sent to Telegram. ` +
+    `Change times are accurate to within about 6 minutes (how often the sign is refreshed).`;
+
+  const rowsEl = document.getElementById("msgRows");
+  rowsEl.innerHTML = "";
+  const allRuns = [];
+
+  signStates.signs.forEach(sign => {
+    const runs = sign.runs.map(([state, s, e, lb, gap]) => ({
+      sign: sign.name, state, start: new Date(s), end: e ? new Date(e) : null, lowerBound: !!lb, gapAfter: !!gap
+    }));
+    runs.forEach(r => allRuns.push(r));
+    const cur = runs.length ? runs[runs.length - 1] : null;
+    const curIsLive = cur && !cur.end;
+    const curMs = curIsLive ? Math.max(0, now - cur.start) : 0;
+    const stuck = curIsLive && isLift(cur.state) && curMs >= limitMs;
+
+    const segs = runs.map(r => {
+      const a = Math.max(r.start, tlStart), b = Math.min(r.end || now, now);
+      if (b <= a) return "";
+      const left = 100 * (a - tlStart) / (now - tlStart), width = 100 * (b - a) / (now - tlStart);
+      return `<div class="${stateClass(r.state)}" style="left:${left}%;width:${width}%"
+        title="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'}"></div>`;
+    }).join("");
+
+    const row = document.createElement("div");
+    row.className = `msg-row${stuck ? " stuck" : ""}`;
+    row.innerHTML = `
+      <div class="msg-name">${escapeHtml(sign.name)}</div>
+      <div class="msg-state">
+        ${curIsLive ? `<i class="sw ${stateClass(cur.state)}"></i> ${escapeHtml(stateText(cur.state))}
+          <span class="since">for ${cur.lowerBound ? "at least " : ""}${fmtDuration(curMs)} (since ${fmtTime(cur.start)})</span>`
+          : `<span class="since">No current data</span>`}
+      </div>
+      <div class="timeline">${segs}</div>`;
+    rowsEl.appendChild(row);
+  });
+
+  const axis = [];
+  for (let i = 0; i <= 4; i++){
+    const t = new Date(tlStart.getTime() + i * (now - tlStart) / 4);
+    axis.push(`<span>${i === 4 ? "now" : t.toLocaleTimeString(undefined, {hour:"2-digit", minute:"2-digit"})}</span>`);
+  }
+  const axisEl = document.getElementById("tlAxis");
+  axisEl.innerHTML = axis.join("");
+  // line the axis up under the timeline column
+  const tl = rowsEl.querySelector(".timeline");
+  if (tl){
+    const base = rowsEl.getBoundingClientRect(), box = tl.getBoundingClientRect();
+    axisEl.style.marginLeft = `${box.left - base.left}px`;
+    axisEl.style.marginRight = `${base.right - box.right}px`;
+  }
+
+  renderHistory(allRuns, now, limitMs);
+}
+
+function renderHistory(allRuns, now, limitMs){
+  const fSign = document.getElementById("fSign");
+  if (fSign.options.length === 1){
+    signStates.signs.forEach(s => fSign.add(new Option(s.name, s.name)));
+  }
+  const sign = fSign.value, state = document.getElementById("fState").value;
+  const longOnly = document.getElementById("fLong").checked;
+
+  const rows = allRuns.filter(r => {
+    const ms = Math.max(0, (r.end || now) - r.start);
+    if (sign && r.sign !== sign) return false;
+    if (state === "LIFT" && !isLift(r.state)) return false;
+    if (state && state !== "LIFT" && r.state !== state) return false;
+    if (longOnly && !(isLift(r.state) && ms >= limitMs)) return false;
+    return true;
+  }).sort((a, b) => b.start - a.start);
+
+  document.getElementById("histCount").textContent = `${rows.length} period${rows.length === 1 ? "" : "s"}`;
+  document.getElementById("histBody").innerHTML = rows.map(r => {
+    const ms = Math.max(0, (r.end || now) - r.start);
+    const long = isLift(r.state) && ms >= limitMs;
+    const to = r.end ? fmtTime(r.end) + (r.gapAfter ? " (data gap)" : "") : "now";
+    return `<tr class="${long ? "long" : ""}">
+      <td>${escapeHtml(r.sign)}</td>
+      <td><i class="sw ${stateClass(r.state)}"></i>${escapeHtml(stateText(r.state))}</td>
+      <td>${r.lowerBound ? "≤ " : ""}${fmtTime(r.start)}</td>
+      <td>${to}</td>
+      <td>${r.lowerBound ? "≥ " : ""}${fmtDuration(ms)}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" style="color:var(--text-dim)">No matching periods.</td></tr>`;
+}
+
+["fSign", "fState", "fLong"].forEach(id =>
+  document.getElementById(id).addEventListener("change", renderSignMessages));
+
 // ---------- hosted mode (same-origin fetch, for when this page is served
 // over http/https rather than opened as a local file) ----------
 let hostedMode = false;
@@ -453,8 +648,9 @@ async function fetchMonitorStart(){
 }
 
 async function renderHostedOnce(){
-  const [text, monitorStart] = await Promise.all([fetchHostedCSV(), fetchMonitorStart()]);
+  const [text, monitorStart] = await Promise.all([fetchHostedCSV(), fetchMonitorStart(), fetchSignStates()]);
   render(computeStatuses(parseCSV(text), monitorStart));
+  renderSignMessages();
 }
 
 async function tryHostedFirst(){

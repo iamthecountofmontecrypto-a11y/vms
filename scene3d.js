@@ -1911,7 +1911,7 @@ export function create(container){
     flame.material.color.setRGB(3, 2, 1); flame.position.y = -8.6; flame.scale.setScalar(2.5); g.add(flame);
     const pilot = makePerson(); pilot.scale.setScalar(.9); pilot.position.set(0, -11.6, .3); g.add(pilot);
     scene.add(g);
-    const dir = pick([-1, 1]), y = Rn(38, 55), z = Rn(-110, -55); let t = 0;
+    const dir = pick([-1, 1]), y = Rn(22, 28), z = Rn(-100, -60); let t = 0;
     return { kind: "balloon",
       update(dt){
         t += dt; g.position.set(dir * (-190 + 7 * t), y + Math.sin(t * .6) * 2, z);
@@ -1964,7 +1964,7 @@ export function create(container){
     const spot = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshBasicMaterial({ color: 0xeaf4ff, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
     spot.rotation.x = -Math.PI / 2; scene.add(spot);
     scene.add(g);
-    const dir = pick([-1, 1]), y = Rn(30, 42), z = Rn(-40, 15); let t = 0;
+    const dir = pick([-1, 1]), y = Rn(17, 24), z = Rn(-40, 15); let t = 0;
     const down = V(0, -1, 0), tmp = V(0, 0, 0);
     return { kind: "heli",
       update(dt){
@@ -1980,9 +1980,266 @@ export function create(container){
       dispose(){ [g, beam, spot].forEach(o => { scene.remove(o); disposeTree(o); }); } };
   }
 
+  // ---- dragon: flaps across the sky breathing fire
+  function evDragon(){
+    const g = new THREE.Group(), skin = std(pick([0x2f8f4e, 0xb3262f, 0x6b3fa0]), { roughness: .5 }), horn = std(0xe8e0c8);
+    const segs = [];
+    for (let i = 0; i < 9; i++){ const m = ball(1, skin, 0, 0, 0); g.add(m); segs.push(m); }
+    const head = new THREE.Group(); g.add(head);
+    head.add(ball(1, skin, 0, 0, 0, 1.6, .9, .9), ball(.25, glow(0xffe14a, 4), .8, .35, .5), ball(.25, glow(0xffe14a, 4), .8, .35, -.5));
+    for (const zz of [.4, -.4]){ const h = new THREE.Mesh(new THREE.ConeGeometry(.2, 1, 8), horn); h.position.set(-.4, .9, zz); h.rotation.z = .6; head.add(h); }
+    const wings = [1, -1].map(sd => { const p = new THREE.Group(); g.add(p); const w = tri([[0, 0], [3, .2], [1.2, 7], [-2.5, 5.5]], skin, .15); w.rotation.x = -Math.PI / 2 * sd; p.add(w); p.userData.sd = sd; return p; });
+    scene.add(g);
+    const dir = pick([-1, 1]), y = Rn(13, 20), z = Rn(-40, 10); let t = 0, fireT = Rn(1, 2.5);
+    return { kind: "dragon",
+      update(dt){
+        t += dt; const x = dir * (-150 + 18 * t);
+        g.position.set(x, y + Math.sin(t * 2) * 1.5, z); g.rotation.y = dir > 0 ? 0 : Math.PI;
+        segs.forEach((m, i) => { m.position.set(-i * 1.2, Math.sin(t * 4 - i * .6) * .5, 0); m.scale.setScalar(1.1 - i * .09); });
+        head.position.set(1.8, .4 + Math.sin(t * 4 + .6) * .4, 0);
+        wings.forEach(w => { w.position.set(-1.5, .4, .6 * w.userData.sd); w.rotation.x = Math.sin(t * 5) * .8 * w.userData.sd; });
+        if (t > fireT && t < fireT + 1.6){
+          const mouth = head.getWorldPosition(V(0, 0, 0)).add(V(dir * 1.8, -.3, 0));
+          for (let i = 0; i < 3; i++) emit(flamePool, mouth, dir * Rn(16, 24), Rn(-6, -2), Rn(-2, 2), Rn(.5, .8), 1.5, 5);
+        } else if (t > fireT + 1.6) fireT = t + Rn(1.5, 3);
+        return Math.abs(x) < 155;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- lightning strike (flashes the sky light, leaves a hissing splash)
+  const boltMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  boltMat.color.setRGB(6, 6, 9); boltMat.userData.keep = true;
+  function evLightning(){
+    const strikes = [], h0 = hemi.intensity;
+    const makeBolt = () => {
+      const p = V(Rn(-90, 90), 0, Rn(-60, 30)), pts = [], cur = p.clone().setY(110);
+      while (cur.y > 0){ const nx = cur.clone().add(V(Rn(-5, 5), -Rn(5, 11), Rn(-3, 3))); nx.y = Math.max(0, nx.y); pts.push(cur.clone(), nx.clone()); if (Math.random() < .25) pts.push(nx.clone(), nx.clone().add(V(Rn(-10, 10), -Rn(4, 12), Rn(-4, 4)))); cur.copy(nx); }
+      const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), boltMat); line.frustumCulled = false; scene.add(line);
+      return { line, hit: cur.clone().setY(0) };
+    };
+    let t = 0, next = 0;
+    return { kind: "lightning",
+      update(dt){
+        t += dt;
+        if (t >= next && strikes.length < 3){ const b = makeBolt(); b.t = 0; strikes.push(b); splashAt(b.hit, 2.4); for (let i = 0; i < 12; i++) emit(flamePool, b.hit, Rn(-4, 4), Rn(4, 10), Rn(-4, 4), .5, 2, .5); next = t + Rn(.5, 1.4); }
+        let flash = 0;
+        for (const b of strikes){ b.t += dt; b.line.visible = b.t < .35 && Math.random() > .25; if (b.t < .35) flash = Math.max(flash, 1 - b.t / .35); }
+        hemi.intensity = h0 + flash * 5;
+        return t < 3.4;
+      },
+      dispose(){ hemi.intensity = h0; strikes.forEach(b => { scene.remove(b.line); b.line.geometry.dispose(); }); } };
+  }
+
+  // ---- yellow submarine: periscope first, then it surfaces and someone pops out to wave
+  function evSub(){
+    const g = new THREE.Group(), paint = std(0xf2c230, { roughness: .4, metalness: .3 }), dark = std(0x1a1d27);
+    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(1.6, 9, 8, 16), paint); hull.rotation.z = Math.PI / 2; g.add(hull);
+    g.add(box(2.4, 2, 1.4, paint, .6, 2, 0));
+    const scope = new THREE.Group(); scope.position.set(1, 3, 0); g.add(scope); scope.add(box(.2, 3.5, .2, dark, 0, 1.75, 0), box(.7, .3, .3, dark, .25, 3.5, 0));
+    for (let i = 0; i < 4; i++) g.add(ball(.35, std(0x7fd6ff, { emissive: 0x2a6f8f }), -3 + i * 1.8, .3, 1.55, 1, 1, .3));
+    const pilot = makePerson(); pilot.scale.setScalar(1.2); pilot.position.set(.6, 1.2, 0); pilot.visible = false; g.add(pilot);
+    scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(5, 30), x0 = Rn(-60, 20) * dir, craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 3, beam: .5, speed: 3 }; eventCraft.add(craft);
+    let t = 0, x = x0;
+    return { kind: "sub",
+      update(dt){
+        t += dt;
+        const depth = t < 5 ? -6 : t < 7 ? -6 + (t - 5) / 2 * 5.3 : t < 12 ? -.7 : -.7 - (t - 12) * 2.5;
+        if (t < 5 || t > 12) x += dir * 3 * dt;
+        if (t > 5 && t < 5.1) splashAt(V(x, 0, z), 2.6);
+        g.position.set(x, surf(x, z) + depth, z); g.rotation.set(0, dir > 0 ? 0 : Math.PI, 0);
+        pilot.visible = t > 7.5 && t < 11.8; pilot.position.y = 1.2 + Math.min(1, Math.max(0, t - 7.5)) * 1.8;
+        pose(pilot, 0, 0, Math.PI + Math.sin(t * 10) * .4, .3);
+        craft.pos.set(x, 0, z); craft.speed = t < 5 || t > 12 ? 3 : 0;
+        return t < 15;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- rocket launch from behind the town
+  function evRocket(){
+    const g = new THREE.Group(), white = std(0xf4f6fa, { roughness: .4 }), red = std(0xd7263d);
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 10, 16), white));
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.1, 3, 16), red); nose.position.y = 6.5; g.add(nose);
+    for (let i = 0; i < 3; i++){ const f = tri([[0, 0], [2, -1.5], [0, 2.5]], red, .2); f.position.set(0, -4, 0); f.rotation.y = i / 3 * Math.PI * 2; f.translateX(1); g.add(f); }
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    flame.material.color.setRGB(4, 2.6, 1.2); flame.position.y = -7; flame.scale.set(4, 9, 1); g.add(flame);
+    scene.add(g);
+    const p = V(Rn(-110, 110), 0, Rn(-150, -120)); let t = 0, v = 0, acc = 0;
+    return { kind: "rocket",
+      update(dt){
+        t += dt; v += (t < 1 ? 2 : 22) * dt; p.y += v * dt;
+        g.position.copy(p); g.rotation.z = Math.sin(t * 2) * .03; flame.scale.set(4 + Math.random(), 8 + Math.random() * 4, 1);
+        acc += dt; while (acc > .04){ acc -= .04; emit(smokePool, V(p.x, p.y - 8, p.z), Rn(-1.5, 1.5), Rn(-3, 0), Rn(-1.5, 1.5), 4, 3, 14, { op: .6, col: [.7, .7, .75] }); emit(flamePool, V(p.x, p.y - 8, p.z), Rn(-1, 1), -8, Rn(-1, 1), .35, 3, 1); }
+        return p.y < 260;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- skydivers: a plane drops three people who parachute into the harbour
+  function evSkydivers(){
+    const plane = new THREE.Group(), body = std(0xe8edf5, { roughness: .4 });
+    plane.add(new THREE.Mesh(new THREE.CapsuleGeometry(.9, 7, 6, 12), body)); plane.children[0].rotation.z = Math.PI / 2;
+    plane.add(box(1.4, .15, 11, body, .4, 0, 0), box(1, .12, 4, body, -3.8, .3, 0), box(1, 1.6, .12, std(0xd7263d), -3.9, 1, 0));
+    scene.add(plane);
+    const dir = pick([-1, 1]), y = 40, z = Rn(-30, 10), divers = [];
+    let t = 0;
+    const cols = [0xff4d6d, 0x3fa7ff, 0xffd23f, 0x7cff6b, 0xc77dff];
+    return { kind: "skydivers",
+      update(dt){
+        t += dt; const px = dir * (-170 + 34 * t);
+        plane.position.set(px, y, z); plane.rotation.y = dir > 0 ? 0 : Math.PI;
+        if (divers.length < 3 && px * dir > -40 + divers.length * 18){
+          const h = new THREE.Group(), p = makePerson(); h.add(p); pose(p, .6, -.6, 2.3, -2.3); p.rotation.z = -Math.PI / 2;
+          const chute = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), std(pick(cols), { side: THREE.DoubleSide, roughness: .7 }));
+          chute.position.y = 9; chute.visible = false; h.add(chute);
+          h.position.set(px, y - 2, z + Rn(-3, 3)); scene.add(h); divers.push({ h, p, chute, vy: 0, open: false, done: false, vx: dir * 10 });
+        }
+        for (const d of divers){
+          if (d.done) continue;
+          if (!d.open){ d.vy -= 9.81 * dt; d.vx *= 1 - dt * .5; if (d.h.position.y < 25){ d.open = true; d.chute.visible = true; d.p.rotation.z = 0; pose(d.p, .1, -.1, Math.PI - .5, Math.PI + .5); } }
+          else { d.vy += (-3 - d.vy) * Math.min(1, dt * 3); d.vx *= 1 - dt; d.h.rotation.z = Math.sin(t * 1.5) * .1; }
+          d.h.position.x += d.vx * dt; d.h.position.y += d.vy * dt;
+          if (d.h.position.y <= surf(d.h.position.x, d.h.position.z) - .5){ d.done = true; splashAt(d.h.position, 1.4); d.h.visible = false; }
+        }
+        return t < 16 && !(divers.length === 3 && divers.every(d => d.done) && Math.abs(px) > 170);
+      },
+      dispose(){ scene.remove(plane); disposeTree(plane); divers.forEach(d => { scene.remove(d.h); disposeTree(d.h); }); } };
+  }
+
+  // ---- a school of flying fish
+  function evFlyingFish(){
+    const dir = pick([-1, 1]), z0 = Rn(8, 36), fish = [], mat = std(0xc9d6e6, { metalness: .8, roughness: .25 });
+    for (let i = 0; i < 10; i++){
+      const g = new THREE.Group(); g.add(ball(1, mat, 0, 0, 0, .9, .25, .25));
+      const w = tri([[0, 0], [.5, 0], [-.4, 1.2]], mat, .04); w.rotation.x = -Math.PI / 2; g.add(w);
+      const w2 = w.clone(); w2.rotation.x = Math.PI / 2; g.add(w2);
+      g.scale.setScalar(1.3); scene.add(g); fish.push({ g, off: i * Rn(2, 4), z: z0 + Rn(-4, 4), ph: -i * .4 - Rn(0, .5), prev: 0 });
+    }
+    let t = 0;
+    return { kind: "flyingfish",
+      update(dt){
+        t += dt; let any = false;
+        for (const f of fish){
+          const x = dir * (-120 + 22 * t) - dir * f.off, ph = t * 3.4 + f.ph, s = Math.sin(ph);
+          f.g.position.set(x, s > 0 ? s * 2.2 : s * .6 - .4, f.z); f.g.rotation.set(0, dir > 0 ? 0 : Math.PI, Math.cos(ph) * .6);
+          if (ph > 0 && Math.sign(s) !== f.prev){ addRipple(x, f.z, .5); f.prev = Math.sign(s); }
+          if (Math.abs(x) < 125) any = true;
+        }
+        return any || t < 1;
+      },
+      dispose(){ fish.forEach(f => { scene.remove(f.g); disposeTree(f.g); }); } };
+  }
+
+  // ---- Santa's sleigh
+  function evSanta(){
+    const g = new THREE.Group(), red = std(0xc81e2c, { roughness: .4 }), gold = std(0xd9b24a, { metalness: .8, roughness: .3 }), brown = std(0x7a4a24, { roughness: .8 });
+    g.add(box(3.4, 1.4, 2, red, 0, .9, 0), box(4.2, .15, .15, gold, .2, 0, .8), box(4.2, .15, .15, gold, .2, 0, -.8), box(1.6, 1.3, 1.6, std(0x5b3a1a), -1, 2, 0));
+    const santa = makePerson(); santa.scale.setScalar(1.3); santa.position.set(.6, .9, 0); pose(santa, 1.3, 1.3, Math.PI - .4, 1.2); g.add(santa);
+    const deer = [];
+    for (let i = 0; i < 4; i++){
+      const d = new THREE.Group(); d.add(box(1.8, .8, .7, brown, 0, 1.2, 0), box(.6, .6, .5, brown, 1.1, 1.8, 0));
+      for (const [lx, lz] of [[-.6, .25], [-.6, -.25], [.6, .25], [.6, -.25]]){ const l = box(.15, .9, .15, brown, lx, .45, lz); d.add(l); }
+      for (const zz of [.2, -.2]) d.add(box(.08, .6, .08, gold, 1, 2.3, zz));
+      if (i === 3) d.add(ball(.18, glow(0xff2020, 8), 1.45, 1.75, 0));
+      d.position.set(4 + i * 2.6, .3, (i % 2 ? .6 : -.6)); g.add(d); deer.push(d);
+    }
+    scene.add(g);
+    const dir = pick([-1, 1]), y = Rn(14, 21), z = Rn(-40, 0); let t = 0;
+    return { kind: "santa",
+      update(dt){
+        t += dt; const x = dir * (-160 + 22 * t);
+        g.position.set(x, y + Math.sin(t * 1.3) * 2, z); g.rotation.y = dir > 0 ? 0 : Math.PI;
+        deer.forEach((d, i) => { d.position.y = .3 + Math.sin(t * 6 + i) * .3; d.children.slice(2, 6).forEach((l, k) => { l.rotation.z = Math.sin(t * 10 + i + k) * .6; }); });
+        emit(flamePool, V(x - dir * 2, y + .2, z), Rn(-.5, .5), Rn(-1, .5), Rn(-.5, .5), .9, .9, .2);
+        return Math.abs(x) < 165;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- pirate ship firing its cannon
+  function evPirate(){
+    const g = new THREE.Group(), wood = std(0x6b3f1f, { roughness: .8 }), dark = std(0x2a1a0c);
+    const hs = new THREE.Shape(); hs.moveTo(-6, 1.6); hs.lineTo(6.5, 1.6); hs.lineTo(4.5, -1); hs.lineTo(-5, -1); hs.closePath();
+    const hull = new THREE.Mesh(new THREE.ExtrudeGeometry(hs, { depth: 3, bevelEnabled: false }), wood); hull.geometry.translate(0, 0, -1.5); g.add(hull);
+    g.add(box(2.4, 1.2, 3, wood, -4.6, 2.2, 0), box(.3, 11, .3, dark, 0, 7, 0), box(.2, 7, .2, dark, 3.2, 5.5, 0));
+    const skull = canvasTex(128, 128, (c2, w) => { c2.fillStyle = "#151515"; c2.fillRect(0, 0, w, w); c2.fillStyle = "#eee"; c2.beginPath(); c2.arc(64, 54, 22, 0, 7); c2.fill(); c2.fillStyle = "#151515"; c2.fillRect(52, 48, 8, 8); c2.fillRect(68, 48, 8, 8); c2.strokeStyle = "#eee"; c2.lineWidth = 9; c2.beginPath(); c2.moveTo(34, 86); c2.lineTo(94, 112); c2.moveTo(94, 86); c2.lineTo(34, 112); c2.stroke(); });
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ map: skull, side: THREE.DoubleSide, roughness: .9 })); sail.position.set(.2, 7.5, 0); sail.rotation.y = Math.PI / 2; g.add(sail);
+    const flag = box(1.6, .9, .05, std(0xd7263d), .8, 12.6, 0); g.add(flag);
+    for (const zz of [1.55, -1.55]) for (const xx of [-2, 1, 4]) g.add(box(.9, .3, .3, dark, xx, .9, zz));
+    scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(0, 30), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 12, beam: 3, speed: 3 }; eventCraft.add(craft);
+    const balls = []; let t = 0, fireAt = Rn(2, 4);
+    return { kind: "pirate",
+      update(dt){
+        t += dt; const x = dir * (-125 + 5 * t);
+        g.position.set(x, surf(x, z) - .3, z); g.rotation.set(Math.sin(t * 1.3) * .05, dir > 0 ? 0 : Math.PI, Math.sin(t * .9) * .04);
+        flag.rotation.y = Math.sin(t * 6) * .3; craft.pos.set(x, 0, z);
+        if (t > fireAt){
+          fireAt = t + Rn(2, 3.5); const side = pick([1, -1]), mz = z + side * 1.8;
+          const muzzle = V(x + Rn(-2, 3), 1, mz);
+          for (let i = 0; i < 10; i++) emit(smokePool, muzzle, Rn(-1, 1), Rn(.5, 2), side * Rn(2, 5), 2.2, 1, 5, { op: .7, col: [.85, .85, .85] });
+          for (let i = 0; i < 5; i++) emit(flamePool, muzzle, Rn(-1, 1), Rn(0, 1), side * Rn(4, 8), .25, 1.5, .5);
+          const b = ball(.35, std(0x111111), muzzle.x, muzzle.y, muzzle.z); scene.add(b); balls.push({ b, v: V(Rn(-3, 3), Rn(5, 8), side * Rn(14, 20)) });
+        }
+        for (let i = balls.length - 1; i >= 0; i--){
+          const bl = balls[i]; bl.v.y -= 9.81 * dt; bl.b.position.addScaledVector(bl.v, dt);
+          if (bl.b.position.y < 0){ splashAt(bl.b.position, 1.6); scene.remove(bl.b); bl.b.material.dispose(); balls.splice(i, 1); }
+        }
+        return Math.abs(x) < 130 || balls.length;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); balls.forEach(bl => scene.remove(bl.b)); eventCraft.delete(craft); } };
+  }
+
+  // ---- paddleboarder who wobbles and falls in
+  function evPaddle(){
+    const g = new THREE.Group(); g.add(box(3.2, .15, .8, std(pick([0x19c3ff, 0xff8a3d, 0x7cff6b]), { roughness: .4 }), 0, .05, 0));
+    const h = new THREE.Group(), p = makePerson(); h.add(p); g.add(h);
+    const paddle = box(.08, 2.6, .08, std(0x222222), .3, 1.6, .5); p.add(paddle);
+    scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(10, 36), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 3.2, beam: .8, speed: 1.5 }; eventCraft.add(craft);
+    let t = 0, x = dir * Rn(-70, -30), fallAt = Rn(4, 7), fell = false;
+    return { kind: "paddle",
+      update(dt){
+        t += dt; x += dir * (fell ? .4 : 1.6) * dt;
+        g.position.set(x, surf(x, z) - .05, z); g.rotation.set(Math.sin(t * 1.2) * .05, dir > 0 ? 0 : Math.PI, 0);
+        if (t < fallAt){ pose(p, 0, 0, .8 + Math.sin(t * 3) * .7, .2); h.rotation.x = t > fallAt - 1.5 ? Math.sin(t * 14) * .25 * (t - fallAt + 1.5) : 0; }
+        else if (!fell){ const u = Math.min(1, (t - fallAt) / .6); h.rotation.x = u * 1.6 * (Math.random() < .5 ? 1 : 1); h.position.y = -u * 1.2; pose(p, .8, -.8, 2.6, -2.6); if (u >= 1){ fell = true; splashAt(V(x, 0, z + 1), 1.6); } }
+        else { h.position.set(0, -1.4, 1.6); h.rotation.set(0, 0, 0); p.rotation.set(0, 0, 0); pose(p, 0, 0, Math.PI + Math.sin(t * 9) * .5, Math.PI - Math.sin(t * 9) * .5); }
+        craft.pos.set(x, 0, z);
+        return t < fallAt + 6;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- jetpack pilot doing a loop over the harbour
+  function evJetpack(){
+    const h = new THREE.Group(), p = makePerson(); h.add(p); p.rotation.z = -Math.PI / 2 + .3; pose(p, -.2, -.4, 1.6, 1.3);
+    const pack = box(.5, .8, .6, std(0x9aa4b5, { metalness: .7, roughness: .3 }), -.3, 1.2, 0); p.add(pack);
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    flame.material.color.setRGB(4, 2.4, 1); flame.position.set(-.3, .5, 0); flame.scale.set(1, 2, 1); p.add(flame);
+    scene.add(h);
+    const dir = pick([-1, 1]), y0 = Rn(11, 17), z = Rn(-20, 20), loopAt = Rn(2, 4); let t = 0, lt = -1, lx = 0, ly = 0, x = dir * -140, y = y0, acc = 0;
+    return { kind: "jetpack",
+      update(dt){
+        t += dt;
+        if (lt < 0 && t > loopAt){ lt = 0; lx = x; ly = y; }
+        if (lt >= 0 && lt < 2){ lt += dt; const a = lt / 2 * Math.PI * 2; x = lx + dir * Math.sin(a) * 10; y = ly + (1 - Math.cos(a)) * 10; h.rotation.z = dir * a; }
+        else { x += dir * 26 * dt; y = y0 + Math.sin(t * 2) * 2; h.rotation.z = 0; }
+        h.position.set(x, y, z); h.rotation.y = dir > 0 ? 0 : Math.PI;
+        flame.scale.set(1 + Math.random() * .4, 2 + Math.random(), 1);
+        acc += dt; while (acc > .05){ acc -= .05; emit(smokePool, h.position, Rn(-.5, .5), Rn(-.5, .5), Rn(-.5, .5), 2, 1, 4, { op: .5, col: [.8, .8, .85] }); }
+        return Math.abs(x) < 145;
+      },
+      dispose(){ scene.remove(h); disposeTree(h); } };
+  }
+
   const EVENT_TYPES = [["jumper", evJumper, 3], ["shark", evShark, 2], ["dolphins", evDolphins, 2], ["ufo", evUFO, 2], ["fireworks", evFireworks, 1.5],
                        ["kraken", evKraken, 1.5], ["duck", evDuck, 1], ["jetski", evJetski, 2], ["whale", evWhale, 1.5], ["balloon", evBalloon, 1],
-                       ["nessie", evNessie, 1.5], ["heli", evHeli, 1.5]];
+                       ["nessie", evNessie, 1.5], ["heli", evHeli, 1.5], ["dragon", evDragon, 1.5], ["lightning", evLightning, 1.2],
+                       ["sub", evSub, 1.4], ["rocket", evRocket, 1.3], ["skydivers", evSkydivers, 1.4], ["flyingfish", evFlyingFish, 1.4], ["santa", evSanta, 1],
+                       ["pirate", evPirate, 1.4], ["paddle", evPaddle, 1.4], ["jetpack", evJetpack, 1.3]];
   function startEvent(kind){
     const busy = new Set(activeEvents.map(e => e.kind));
     let entry;
@@ -1999,7 +2256,7 @@ export function create(container){
   }
   function updateEvents(dt){
     eventClock += dt;
-    if (autoEvents && !reduce && eventClock >= nextEventAt){ nextEventAt = eventClock + Rn(4, 11); if (activeEvents.length < 3) startEvent(); }
+    if (autoEvents && !reduce && eventClock >= nextEventAt){ nextEventAt = eventClock + Rn(3, 9); if (activeEvents.length < 4) startEvent(); }
     for (let i = activeEvents.length - 1; i >= 0; i--){
       const e = activeEvents[i]; let alive = false;
       try { alive = e.update(dt); } catch (err) { console.warn("3D event failed:", e.kind, err); }
@@ -2071,6 +2328,7 @@ export function create(container){
     _event(kind){ return startEvent(kind); },                      // for automated checks
     _events(){ return activeEvents.map(e => e.kind); },
     _autoEvents(on){ autoEvents = on; },
+    _step(sec){ for (let k = 0; k < sec / .05; k++){ updateEvents(.05); if (!alarm) updateParticles(.05); } },   // fast-forward events (tests)
     _alarm(){
       return { k: +alarmK.toFixed(2), meteors: meteors3.length, wrecks: wrecks.length, burners: burners.length, explosions: explosionCount,
                broken: bridges.map(b => `${(b.pieces || []).filter(o => o.userData.broken).length}/${(b.pieces || []).length}`) };

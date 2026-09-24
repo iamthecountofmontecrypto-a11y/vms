@@ -2667,9 +2667,174 @@ const Fun2D = (() => {
           });
         } };
     },
+    kaiju(s){
+      const x = R(120, 480), y = s.water + R(4, 12), dir = pick([-1, 1]); let t = 0;
+      return { kind: "kaiju", s,
+        update(dt){
+          t += dt;
+          if (t < .1) splash(s, x, y, 2.5);
+          if (t > 3 && t < 5){ for (let i = 0; i < 3; i++) parts.push({ s, t: "spark", x: x + dir * 30, y: y - 88 * 1.2 + R(-2, 2), vx: dir * R(160, 220), vy: R(-10, 30), life: R(.5, .9), age: 0, col: "120,220,255" }); }
+          if (t > 7.5 && t < 7.6) splash(s, x, y, 3);
+          return t < 9;
+        },
+        draw(){
+          const up = t < 2 ? t / 2 : t > 7 ? Math.max(0, 1 - (t - 7) / 1.2) : 1, roar = t > 2.8 && t < 5.2;
+          above(s, y + 2, () => {
+            g.save(); g.translate(x, y + (1 - up) * 110); g.scale(dir * 1.2, 1.2);
+            g.fillStyle = "#3d5a3a";
+            g.beginPath(); g.moveTo(-22, 10); g.quadraticCurveTo(-26, -40, -10, -60); g.quadraticCurveTo(0, -75, 14, -72); g.quadraticCurveTo(28, -70, 30, roar ? -64 : -60); g.lineTo(14, roar ? -54 : -58); g.quadraticCurveTo(6, -40, 12, -20); g.quadraticCurveTo(14, 0, 16, 10); g.closePath(); g.fill();
+            g.fillStyle = "#6f9a5f"; for (let i = 0; i < 6; i++){ g.beginPath(); g.moveTo(-20 + i * 2, -10 - i * 10); g.lineTo(-30 + i * 2, -14 - i * 10); g.lineTo(-18 + i * 2, -18 - i * 10); g.fill(); }
+            g.fillStyle = "#3d5a3a"; g.beginPath(); g.moveTo(8, -40); g.lineTo(26, -34); g.lineTo(24, -30); g.lineTo(8, -34); g.fill();
+            g.fillStyle = "#ffe14a"; g.beginPath(); g.arc(18, -66, 2, 0, TAU); g.fill();
+            if (roar){ g.fillStyle = "#fff"; g.beginPath(); g.moveTo(20, -60); g.lineTo(22, -57); g.lineTo(24, -61); g.fill(); }
+            g.restore();
+          });
+          if (roar){ inScene(s); g.globalCompositeOperation = "lighter"; const bx = x + dir * 36, by = y - 88 * 1.2 + 4, gr = g.createLinearGradient(bx, by, bx + dir * 300, by); gr.addColorStop(0, "rgba(180,240,255,.9)"); gr.addColorStop(1, "rgba(80,180,255,0)"); g.fillStyle = gr; g.fillRect(dir > 0 ? bx : bx - 300, by - 4, 300, 8); g.globalCompositeOperation = "source-over"; }
+        } };
+    },
+    waterspout(s){
+      const dir = pick([-1, 1]), y = s.water + R(10, 24); let x = R(80, 520), t = 0;
+      return { kind: "waterspout", s,
+        update(dt){ t += dt; x += dir * 18 * dt + Math.sin(t * 2) * 12 * dt; if (Math.random() < dt * 20) parts.push({ s, t: "drop", x: x + R(-10, 10), y: y - R(0, 10), vx: R(-50, 50), vy: R(-80, -30), wy: y + 1, life: 1, age: 0 }); return t < 9; },
+        draw(){
+          const k = t < 1 ? t : t > 8 ? 9 - t : 1;
+          inScene(s);
+          for (let i = 0; i < 26; i++){
+            const u = i / 25, py = y - u * 190 * k, w = (3 + u * u * 28) * k, sw = Math.sin(t * 3 + u * 5) * 10 * u;
+            g.strokeStyle = `rgba(210,225,240,${.18 + .2 * (1 - u)})`; g.lineWidth = 1.4;
+            g.beginPath(); g.ellipse(x + sw, py, w, w * .25, 0, (t * 6 + i) % TAU, (t * 6 + i) % TAU + 4); g.stroke();
+          }
+          g.fillStyle = "rgba(210,225,240,.3)"; g.beginPath(); g.ellipse(x, y, 18 * k, 4 * k, 0, 0, TAU); g.fill();
+        } };
+    },
+    invaders(s){
+      const dir = pick([-1, 1]), ships = [0, 1, 2].map(i => ({ off: i * 36, y: R(40, 90), lz: -1 })); let t = 0;
+      return { kind: "invaders", s,
+        update(dt){
+          t += dt;
+          for (const sh of ships){ sh.x = (dir > 0 ? -60 : 660) + dir * (110 * t - sh.off); sh.lz -= dt;
+            if (sh.x > 20 && sh.x < 580 && sh.lz <= 0 && Math.random() < dt * 3){ sh.lz = .25; sh.tx = sh.x + R(-30, 30); splash(s, sh.tx, s.water + R(8, 30), 1.2); sh.ty = parts[parts.length - 1].y; } }
+          return dir > 0 ? ships[2].x < 680 : ships[2].x > -80;
+        },
+        draw(){
+          inScene(s);
+          for (const sh of ships){
+            if (sh.lz > 0){ g.strokeStyle = `rgba(120,255,140,${sh.lz * 4})`; g.lineWidth = 1.6; g.beginPath(); g.moveTo(sh.x, sh.y + 3); g.lineTo(sh.tx, sh.ty); g.stroke(); }
+            g.save(); g.translate(sh.x, sh.y); g.fillStyle = "#b8c2d0"; g.beginPath(); g.ellipse(0, 0, 11, 3, 0, 0, TAU); g.fill();
+            g.fillStyle = "rgba(140,255,160,.7)"; g.beginPath(); g.ellipse(0, -2, 5, 4, 0, Math.PI, 0); g.fill();
+            g.fillStyle = `hsl(${(t * 400) % 360},100%,60%)`; g.fillRect(-8, 1, 2, 1.4); g.fillRect(-1, 1.5, 2, 1.4); g.fillRect(6, 1, 2, 1.4);
+            g.restore();
+          }
+        } };
+    },
+    humancannon(s){
+      const cx = s.walk[0] - 10, cy = s.deck, look = looks(), landY = s.water + R(14, 34); let t = 0, fired = false, px = cx, py = cy - 6, vx = -R(90, 130), vy = -R(110, 140), splashed = false, rot = 0;
+      return { kind: "humancannon", s,
+        update(dt){
+          t += dt;
+          if (!fired && t > 1.5){ fired = true; for (let i = 0; i < 12; i++) puff(s, cx - 12, cy - 10, 1.5, "235,235,235"); for (let i = 0; i < 20; i++) parts.push({ s, t: "spark", x: cx - 12, y: cy - 10, vx: R(-90, 0), vy: R(-60, 20), life: .5, age: 0, col: "255,200,90" }); }
+          if (fired && !splashed){ vy += 160 * dt; px += vx * dt; py += vy * dt; rot -= 8 * dt; if (vy > 0 && py > landY){ splashed = true; splash(s, px, landY, 2.2); } }
+          return t < 7;
+        },
+        draw(){
+          inScene(s);
+          g.save(); g.translate(cx, cy - 4); g.rotate(-.55); g.fillStyle = "#c81e2c"; g.fillRect(-16, -4, 20, 8); g.fillStyle = "#d9b24a"; g.fillRect(-17, -4.5, 2, 9); g.restore();
+          g.fillStyle = "#333"; g.beginPath(); g.arc(cx, cy - 2, 3.5, 0, TAU); g.fill();
+          if (!fired) person(cx + 8, cy, { ...look, pose: "up", ph: t * 10, sc: .9 });
+          else if (!splashed) person(px, py, { ...look, pose: "star", rot, sc: .9 });
+          else if (t < 6) above(s, landY + 1, () => person(px, landY + 3, { ...look, pose: "up", ph: t * 10, sc: .9 }));
+        } };
+    },
+    unicorn(s){
+      const dir = pick([-1, 1]), y0 = R(40, 90); let x = dir > 0 ? -40 : 640, t = 0, acc = 0;
+      const RB = ["255,60,60", "255,160,40", "255,230,60", "80,220,90", "60,160,255", "150,90,255"];
+      return { kind: "unicorn", s,
+        update(dt){ t += dt; x += dir * 60 * dt; acc += dt; while (acc > .02){ acc -= .02; const y = y0 + Math.sin(t * 2) * 8; RB.forEach((c, i) => parts.push({ s, t: "spark", x: x - dir * 10, y: y + 2 + i * 1.6, vx: 0, vy: 0, life: 1.4, age: 0, col: c })); } return dir > 0 ? x < 680 : x > -80; },
+        draw(){
+          inScene(s); const y = y0 + Math.sin(t * 2) * 8, lg = Math.sin(t * 10) * .5;
+          g.save(); g.translate(x, y); g.scale(dir * 1.3, 1.3);
+          g.fillStyle = "#fafafa"; g.beginPath(); g.ellipse(0, 0, 9, 4.5, 0, 0, TAU); g.fill();
+          g.beginPath(); g.moveTo(6, -2); g.lineTo(11, -10); g.lineTo(15, -9); g.lineTo(9, 0); g.fill();
+          g.strokeStyle = "#fafafa"; g.lineWidth = 1.6; g.lineCap = "round";
+          for (const [lx, a] of [[-6, lg], [-3, -lg], [4, lg], [7, -lg]]){ g.beginPath(); g.moveTo(lx, 3); g.lineTo(lx + Math.sin(a) * 6, 3 + Math.cos(a) * 6); g.stroke(); }
+          g.strokeStyle = "#ffd23f"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(13, -10); g.lineTo(17, -16); g.stroke();
+          g.fillStyle = "#c77dff"; g.beginPath(); g.moveTo(8, -9); g.quadraticCurveTo(4, -6, 5, -2); g.lineTo(9, -6); g.fill();
+          g.beginPath(); g.moveTo(-9, -1); g.quadraticCurveTo(-16, 0, -15, 6); g.quadraticCurveTo(-12, 2, -9, 1); g.fill();
+          g.fillStyle = "#111"; g.beginPath(); g.arc(12.5, -8.5, .7, 0, TAU); g.fill();
+          g.fillStyle = "rgba(255,255,255,.8)"; g.beginPath(); g.moveTo(-2, -3); g.lineTo(-10, -12 - Math.sin(t * 12) * 5); g.lineTo(2, -4); g.fill();
+          g.restore();
+        } };
+    },
+    bubbles(s){
+      const bs = []; for (let i = 0; i < 9; i++) bs.push({ x: R(60, 540), y: s.water + R(0, 20), r: R(6, 16), vy: -R(10, 22), ph: R(0, 6), at: R(0, 3), pop: R(4, 8) });
+      let t = 0;
+      return { kind: "bubbles", s,
+        update(dt){ t += dt; for (const b of bs){ if (t < b.at || b.gone) continue; b.y += b.vy * dt; b.x += Math.sin(t * 1.5 + b.ph) * 8 * dt; if (t > b.at + b.pop){ b.gone = true; for (let i = 0; i < 10; i++){ const a = i / 10 * TAU; parts.push({ s, t: "spark", x: b.x + Math.cos(a) * b.r, y: b.y + Math.sin(a) * b.r, vx: Math.cos(a) * 20, vy: Math.sin(a) * 20, life: .4, age: 0, col: "220,240,255" }); } } } return bs.some(b => !b.gone) || t < 1; },
+        draw(){
+          inScene(s);
+          for (const b of bs){ if (t < b.at || b.gone) continue;
+            const gr = g.createRadialGradient(b.x - b.r * .3, b.y - b.r * .3, 0, b.x, b.y, b.r); gr.addColorStop(0, "rgba(255,255,255,.05)"); gr.addColorStop(.85, `hsla(${(t * 60 + b.ph * 50) % 360},90%,75%,.18)`); gr.addColorStop(1, "rgba(255,255,255,.45)");
+            g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, b.r, 0, TAU); g.fill();
+            g.fillStyle = "rgba(255,255,255,.7)"; g.beginPath(); g.ellipse(b.x - b.r * .4, b.y - b.r * .45, b.r * .22, b.r * .12, -.6, 0, TAU); g.fill(); }
+        } };
+    },
+    swimrace(s){
+      const dir = pick([-1, 1]), swimmers = [0, 1, 2, 3].map(i => ({ y: s.water + 14 + i * 9, v: R(14, 22), look: looks(), x: dir > 0 ? -20 : 620 })); let t = 0;
+      return { kind: "swimrace", s,
+        update(dt){ t += dt; swimmers.forEach(w => { w.v += R(-6, 6) * dt; w.x += dir * Math.max(8, w.v) * dt; if (Math.random() < dt * 4) parts.push({ s, t: "drop", x: w.x - dir * 4, y: w.y - 1, vx: R(-10, 10), vy: R(-30, -10), wy: w.y + 1, life: .5, age: 0 }); }); return swimmers.some(w => dir > 0 ? w.x < 640 : w.x > -40); },
+        draw(){
+          swimmers.forEach((w, i) => above(s, w.y + 1.2, () => { person(w.x, w.y + 3.5, { ...w.look, pose: "swim", ph: t * 10 + i, rot: dir > 0 ? Math.PI / 2 : -Math.PI / 2, sc: .9 }); }));
+          inScene(s); g.strokeStyle = "rgba(255,80,80,.5)"; g.setLineDash([2, 3]); g.lineWidth = .6; swimmers.forEach(w => { g.beginPath(); g.moveTo(0, w.y + 4.5); g.lineTo(600, w.y + 4.5); g.stroke(); }); g.setLineDash([]);
+        } };
+    },
+    crabs(s){
+      const dir = pick([-1, 1]), n = 6, y = s.water + R(22, 38); let t = 0, x = dir > 0 ? -60 : 660;
+      return { kind: "crabs", s,
+        update(dt){ t += dt; x += dir * 16 * dt; return dir > 0 ? x < 700 : x > -100; },
+        draw(){
+          above(s, y + 2, () => { g.fillStyle = "#6b4423"; g.beginPath(); g.ellipse(x, y, 42, 4.5, Math.sin(t * 1.4) * .03, 0, TAU); g.fill(); g.fillStyle = "#8a5a2b"; g.beginPath(); g.ellipse(x + 40, y, 3, 4.2, 0, 0, TAU); g.fill(); });
+          inScene(s);
+          for (let i = 0; i < n; i++){ const cx = x - 32 + i * 13, cy = y - 7 - Math.abs(Math.sin(t * 8 + i)) * 3, c = Math.sin(t * 6 + i) * .4;
+            g.save(); g.translate(cx, cy); g.rotate(Math.sin(t * 5 + i) * .25); g.fillStyle = "#e0402a"; g.beginPath(); g.ellipse(0, 0, 4.5, 3, 0, 0, TAU); g.fill();
+            g.strokeStyle = "#e0402a"; g.lineWidth = .9; for (const sd of [-1, 1]) for (let k = 0; k < 3; k++){ g.beginPath(); g.moveTo(sd * 3, 1); g.lineTo(sd * (6 + k), 3 + Math.sin(t * 16 + k + i) * 1.2); g.stroke(); }
+            for (const sd of [-1, 1]){ g.beginPath(); g.moveTo(sd * 3, -1); g.lineTo(sd * 6, -5 - Math.abs(Math.sin(t * 8 + i)) * 2); g.stroke(); g.beginPath(); g.arc(sd * 6.5, -6, 1.8, c, c + 4.4); g.stroke(); }
+            g.fillStyle = "#fff"; g.fillRect(-1.6, -4.5, 1.2, 1.2); g.fillRect(.4, -4.5, 1.2, 1.2); g.fillStyle = "#111"; g.fillRect(-1.3, -4.2, .6, .6); g.fillRect(.7, -4.2, .6, .6);
+            g.restore(); }
+        } };
+    },
+    kitesurf(s){
+      const dir = pick([-1, 1]), base = s.water + R(22, 40), look = looks(); let x = dir > 0 ? -30 : 630, t = 0, jumpT = -1, ny = 0;
+      return { kind: "kitesurf", s,
+        update(dt){ t += dt; x += dir * 40 * dt; if (jumpT < 0 && t > R(1.5, 3)) jumpT = 0; if (jumpT >= 0){ jumpT += dt; if (jumpT > 1.8){ splash(s, x, base, 1.5); jumpT = -99; } } return dir > 0 ? x < 680 : x > -80; },
+        draw(){
+          const air = jumpT >= 0 ? Math.sin(jumpT / 1.8 * Math.PI) * 55 : 0, y = base - air;
+          inScene(s);
+          const kx = x + dir * 30, ky = y - 70 - air * .2;
+          g.strokeStyle = "rgba(230,230,230,.6)"; g.lineWidth = .5; g.beginPath(); g.moveTo(x, y - 10); g.lineTo(kx - 10, ky + 4); g.moveTo(x, y - 10); g.lineTo(kx + 10, ky + 4); g.stroke();
+          g.fillStyle = "#ff3b50"; g.beginPath(); g.moveTo(kx - 16, ky + 4); g.quadraticCurveTo(kx, ky - 14, kx + 16, ky + 4); g.quadraticCurveTo(kx, ky - 6, kx - 16, ky + 4); g.fill();
+          g.save(); g.translate(x, y); g.rotate(jumpT >= 0 ? dir * jumpT * 3.5 : 0); g.fillStyle = "#ffd23f"; g.fillRect(-7, -1, 14, 2); g.restore();
+          person(x, y - 1, { ...look, pose: "star", sc: .9, face: dir, rot: jumpT >= 0 ? dir * jumpT * 3.5 : 0 });
+          if (air < 2 && t % .1 < .05) parts.push({ s, t: "drop", x: x - dir * 6, y: base, vx: -dir * R(10, 30), vy: R(-30, -10), wy: base + 1, life: .5, age: 0 });
+        } };
+    },
+    waterski(s){
+      const dir = pick([-1, 1]), y = s.water + R(26, 42), look = looks(); let x = dir > 0 ? -60 : 660, t = 0, jumpAt = R(2.5, 4.5), jt = -1;
+      return { kind: "waterski", s,
+        update(dt){ t += dt; x += dir * 70 * dt; if (jt < 0 && t > jumpAt) jt = 0; if (jt >= 0){ jt += dt; if (jt > 1 && jt < 1.03) splash(s, x - dir * 40, y, 1.4); } parts.push({ s, t: "drop", x: x - dir * 18, y: y - 1, vx: -dir * R(10, 40), vy: R(-40, -10), wy: y + 1, life: .5, age: 0 }); return dir > 0 ? x < 720 : x > -120; },
+        draw(){
+          inScene(s);
+          g.save(); g.translate(x, y); g.scale(dir, 1); g.fillStyle = "#f4f6fa"; g.beginPath(); g.moveTo(-16, -3); g.lineTo(14, -3); g.lineTo(20, -6); g.lineTo(16, 2); g.lineTo(-16, 2); g.fill(); g.fillStyle = "#1f5fbf"; g.fillRect(-6, -7, 8, 4); g.restore();
+          const sx = x - dir * 40, air = jt >= 0 && jt < 1 ? Math.sin(jt * Math.PI) * 28 : 0, sy = y - air;
+          if (jt >= 0 && jt < 1) { g.fillStyle = "#c9a36b"; g.beginPath(); g.moveTo(x - dir * 55, y + 1); g.lineTo(x - dir * 45, y - 6); g.lineTo(x - dir * 45, y + 1); g.fill(); }
+          g.strokeStyle = "rgba(240,240,240,.7)"; g.lineWidth = .5; g.beginPath(); g.moveTo(x - dir * 16, y - 4); g.lineTo(sx + dir * 3, sy - 9); g.stroke();
+          g.fillStyle = "#ff8a3d"; g.fillRect(sx - 6, sy - 1, 12, 1.4);
+          person(sx, sy - 1, { ...look, pose: air > 0 ? "star" : "walk", ph: 0, sc: .9, face: dir, rot: -dir * .3 });
+        } };
+    },
   };
   const WEIGHTS = { jumper: 3, shark: 2, dolphins: 2, ufo: 2, fireworks: 1.5, nessie: 1.5, duck: 1, balloon: 1, kraken: 1.5, jetpack: 1.5, whale: 1.5, pirate: 1.5,
-                    dragon: 1.5, lightning: 1.2, sub: 1.4, rocket: 1.3, skydivers: 1.4, flyingfish: 1.4, santa: 1, surfer: 1.4, paddle: 1.4, seagull: 1.4, mermaid: 1.2 };
+                    dragon: 1.5, lightning: 1.2, sub: 1.4, rocket: 1.3, skydivers: 1.4, flyingfish: 1.4, santa: 1, surfer: 1.4, paddle: 1.4, seagull: 1.4, mermaid: 1.2,
+                    kaiju: 1.3, waterspout: 1.2, invaders: 1.4, humancannon: 1.4, unicorn: 1.2, bubbles: 1.3, swimrace: 1.3, crabs: 1.3, kitesurf: 1.4, waterski: 1.4 };
   function spawn(kind, si){
     const busy = new Set(events.map(e => e.kind));
     if (!kind){
@@ -3099,7 +3264,7 @@ tickClock();
     if (!loading) loading = (async () => {
       if (!webglOK()) throw new Error("WebGL is not available");
       msg.textContent = "Loading 3D…";
-      const mod = await import("./scene3d.js?v=9");
+      const mod = await import("./scene3d.js?v=10");
       api = mod.create(host);
       msg.textContent = "";
       api.setStates(states3d);

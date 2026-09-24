@@ -2235,11 +2235,252 @@ export function create(container){
       dispose(){ scene.remove(h); disposeTree(h); } };
   }
 
+  // ---- kaiju: a giant lizard rises from the harbour and roars a beam across the sky
+  function evKaiju(){
+    const g = new THREE.Group(), skin = std(0x3d5a3a, { roughness: .7 }), spike = std(0x9fd6a0, { emissive: 0x2a6a4a, emissiveIntensity: .8 });
+    g.add(ball(1, skin, 0, 7, 0, 3.2, 8, 3), ball(1, skin, 1.2, 15.5, 0, 2.4, 2, 2));
+    const jaw = ball(1, skin, 3, 14.6, 0, 2, .7, 1.4); g.add(jaw);
+    for (let i = 0; i < 7; i++){ const sp = new THREE.Mesh(new THREE.ConeGeometry(.6, 1.8, 6), spike); sp.position.set(-2.8, 3 + i * 1.9, 0); sp.rotation.z = .9; g.add(sp); }
+    for (const zz of [1.9, -1.9]){ g.add(ball(1, skin, 1.6, 9, zz, .7, 2.2, .7)); g.add(ball(.35, glow(0xffe14a, 6), 2.6, 16.2, zz * .5)); }
+    scene.add(g);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.6, 1.6, 1, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: .7, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+    beam.material.color.setRGB(1.6, 3, 4); beam.geometry.translate(0, .5, 0); beam.visible = false; scene.add(beam);
+    const c = V(Rn(-50, 50), 0, Rn(-35, 5)), dir = pick([-1, 1]); let t = 0;
+    splashAt(c, 3);
+    return { kind: "kaiju",
+      update(dt){
+        t += dt;
+        const up = t < 2.5 ? t / 2.5 : t > 8 ? Math.max(0, 1 - (t - 8) / 1.8) : 1;
+        g.position.set(c.x, -18 + up * 17 + Math.sin(t * 2) * .3, c.z); g.rotation.y = (dir > 0 ? 0 : Math.PI) + Math.sin(t * .8) * .15;
+        const roar = t > 3.5 && t < 6;
+        jaw.position.y = roar ? 13.8 : 14.6;
+        beam.visible = roar;
+        if (roar){ const mouth = V(3.5, 14.5, 0).applyMatrix4(g.matrixWorld), d = V(dir * 1, .45, .1).normalize(); beam.position.copy(mouth); beam.quaternion.setFromUnitVectors(UP, d); beam.scale.set(1 + Math.random() * .3, 140, 1 + Math.random() * .3); shake = Math.max(shake, .25); }
+        if (up < 1 && up > 0 && Math.random() < dt * 6) splashAt(V(c.x + Rn(-4, 4), 0, c.z + Rn(-3, 3)), 1.5);
+        return t < 10;
+      },
+      dispose(){ [g, beam].forEach(o => { scene.remove(o); disposeTree(o); }); } };
+  }
+
+  // ---- waterspout wandering across the harbour
+  function evWaterspout(){
+    const g = new THREE.Group(), rings = [];
+    const mat = new THREE.MeshBasicMaterial({ color: 0xe4eef8, transparent: true, opacity: .38, depthWrite: false, side: THREE.DoubleSide });
+    for (let i = 0; i < 14; i++){ const r = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 3.4, 20, 1, true), mat); g.add(r); rings.push(r); }
+    scene.add(g);
+    const p = V(Rn(-35, 35), 0, Rn(-10, 25)), vel = V(pick([-1, 1]) * Rn(2, 4), 0, Rn(-1.5, 1.5)); let t = 0, acc = 0;
+    return { kind: "waterspout",
+      update(dt){
+        t += dt; p.addScaledVector(vel, dt); p.x += Math.sin(t * 1.3) * 3 * dt;
+        const k = t < 1.5 ? t / 1.5 : t > 9 ? Math.max(0, 1 - (t - 9) / 1.5) : 1;
+        g.position.copy(p);
+        rings.forEach((r, i) => { const u = i / 13; r.position.set(Math.sin(t * 2 + u * 4) * 3 * u, 1.7 + i * 3.1 * k, Math.cos(t * 1.7 + u * 3) * 2 * u); r.scale.set((1 + u * u * 9) * k, 1, (1 + u * u * 9) * k); r.rotation.y = t * 6 + i; });
+        acc += dt; while (acc > .03){ acc -= .03; const a = Rn(0, 6.28); emit(smokePool, V(p.x + Math.cos(a) * 3, .5, p.z + Math.sin(a) * 3), -Math.sin(a) * 8, Rn(4, 9), Math.cos(a) * 8, 1.2, 1, 4, { op: .55 * k, col: [.82, .87, .92] }); }
+        if (Math.random() < dt * 3) addRipple(p.x, p.z, 1.4);
+        return t < 10.5;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- alien saucers strafing the water with lasers
+  const laserMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  laserMat.color.setRGB(1.5, 6, 2); laserMat.userData.keep = true;
+  function evInvaders(){
+    const dir = pick([-1, 1]), ships = [];
+    for (let i = 0; i < 3; i++){
+      const g = new THREE.Group(); g.add(ball(1, std(0xb8c2d0, { metalness: .9, roughness: .25 }), 0, 0, 0, 3, .6, 3), ball(1.1, new THREE.MeshStandardMaterial({ color: 0x8cffa0, emissive: 0x2a8f4a, transparent: true, opacity: .8 }), 0, .4, 0, 1, .8, 1));
+      const lg = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, -1, 0)]), laserMat); lg.frustumCulled = false; lg.visible = false; scene.add(lg);
+      scene.add(g); ships.push({ g, lg, off: i * 14, y: Rn(14, 22), z: Rn(-25, 20), lz: 0 });
+    }
+    let t = 0;
+    return { kind: "invaders",
+      update(dt){
+        t += dt; let any = false;
+        for (const s of ships){
+          const x = dir * (-150 + 45 * t) - dir * s.off; s.g.position.set(x, s.y + Math.sin(t * 5 + s.off) * .8, s.z); s.g.rotation.y += dt * 4; s.g.rotation.z = Math.sin(t * 3 + s.off) * .15;
+          s.lz -= dt;
+          if (Math.abs(x) < 110 && s.lz <= 0 && Math.random() < dt * 2.5){
+            s.lz = .22; const hit = V(x + Rn(-15, 15), 0, s.z + Rn(5, 20));
+            s.lg.geometry.setFromPoints([s.g.position.clone().add(V(0, -.5, 0)), hit]); splashAt(hit, 1.6); for (let i = 0; i < 6; i++) emit(flamePool, hit, Rn(-3, 3), Rn(2, 6), Rn(-3, 3), .4, 1.5, .5);
+          }
+          s.lg.visible = s.lz > 0;
+          if (Math.abs(x) < 160) any = true;
+        }
+        return any || t < 1;
+      },
+      dispose(){ ships.forEach(s => { scene.remove(s.g); disposeTree(s.g); scene.remove(s.lg); s.lg.geometry.dispose(); }); } };
+  }
+
+  // ---- human cannonball fired off a quay
+  function evHumanCannon(){
+    const b = pick(bridges), q = b === twin ? 44 : 58, s = pick([-1, 1]);
+    const base = b.group.localToWorld(V(s * q, b.deck, Rn(4, 8)));
+    const g = new THREE.Group(), red = std(0xc81e2c, { roughness: .4 }), gold = std(0xd9b24a, { metalness: .8, roughness: .3 });
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1.1, 5, 16), red); barrel.position.y = 2.2; barrel.rotation.z = -.8; g.add(barrel);
+    for (const zz of [1, -1]){ const w = new THREE.Mesh(new THREE.TorusGeometry(1, .2, 8, 16), gold); w.position.set(-.5, 1, zz); g.add(w); }
+    g.position.copy(base); scene.add(g);
+    const toWater = V(-base.x, 0, 30 - base.z).setY(0).normalize(); g.rotation.y = yawOf(toWater.x, toWater.z);
+    const h = new THREE.Group(), p = makePerson(); h.add(p); h.visible = false; scene.add(h);
+    const vel = V(0, 0, 0); let t = 0, fired = false, landed = false;
+    return { kind: "humancannon",
+      update(dt){
+        t += dt;
+        if (!fired && t > 1.6){
+          fired = true; const muzzle = V(1.7, 3.9, 0).applyMatrix4(g.matrixWorld);
+          h.position.copy(muzzle); h.visible = true; vel.copy(toWater).multiplyScalar(Rn(11, 15)).setY(Rn(13, 16));
+          for (let i = 0; i < 16; i++){ emit(smokePool, muzzle, toWater.x * Rn(2, 6), Rn(1, 4), toWater.z * Rn(2, 6), 2.5, 1.5, 6, { op: .8, col: [.9, .9, .9] }); emit(flamePool, muzzle, toWater.x * Rn(4, 9), Rn(0, 3), toWater.z * Rn(4, 9), .3, 2, .5); }
+          shake = Math.max(shake, .3);
+        }
+        if (fired && !landed){
+          vel.y -= 9.81 * dt; h.position.addScaledVector(vel, dt); p.rotation.z -= dt * 9; pose(p, .5, -.5, 2.3, -2.3);
+          if (vel.y < 0 && h.position.y <= surf(h.position.x, h.position.z)){ landed = true; splashAt(h.position, 2.2); h.visible = false; }
+        }
+        return t < 7;
+      },
+      dispose(){ [g, h].forEach(o => { scene.remove(o); disposeTree(o); }); } };
+  }
+
+  // ---- flying unicorn with a rainbow trail
+  function evUnicorn(){
+    const g = new THREE.Group(), white = std(0xfafafa, { roughness: .5 }), mane = std(0xc77dff, { emissive: 0x5a2a8a });
+    g.add(ball(1, white, 0, 0, 0, 2, 1, 1));
+    const neck = box(.7, 1.8, .6, white, 1.6, .9, 0); neck.rotation.z = -.6; g.add(neck);
+    g.add(box(1.2, .6, .55, white, 2.5, 1.8, 0), box(.6, 1.2, .1, mane, 1.3, 1.5, 0));
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(.15, 1.1, 8), std(0xffd23f, { emissive: 0xaa8800, metalness: .6 })); horn.position.set(2.8, 2.5, 0); horn.rotation.z = -.5; g.add(horn);
+    const legs = [[-1.2, .35], [-1.2, -.35], [1.1, .35], [1.1, -.35]].map(([x, z]) => { const l = new THREE.Group(); l.position.set(x, -.5, z); l.add(box(.25, 1.4, .25, white, 0, -.7, 0)); g.add(l); return l; });
+    for (const sd of [1, -1]){ const w = tri([[0, 0], [-1.5, 3.2], [1.2, 2.4]], std(0xffffff, { transparent: true, opacity: .8 }), .05); w.position.set(0, .6, .4 * sd); w.rotation.x = sd * .5; g.add(w); g.userData["w" + sd] = w; }
+    scene.add(g);
+    const dir = pick([-1, 1]), y = Rn(12, 19), z = Rn(-30, 10), RB = [[1, .2, .2], [1, .6, .1], [1, .95, .2], [.3, .9, .35], [.25, .6, 1], [.6, .35, 1]]; let t = 0;
+    return { kind: "unicorn",
+      update(dt){
+        t += dt; const x = dir * (-150 + 24 * t), yy = y + Math.sin(t * 2) * 1.5;
+        g.position.set(x, yy, z); g.rotation.y = dir > 0 ? 0 : Math.PI;
+        legs.forEach((l, i) => { l.rotation.z = Math.sin(t * 9 + i * 1.6) * .7; });
+        g.userData.w1.rotation.x = .5 + Math.sin(t * 8) * .5; g.userData["w-1"].rotation.x = -.5 - Math.sin(t * 8) * .5;
+        RB.forEach((c, i) => emit(smokePool, V(x - dir * 2, yy + .9 - i * .35, z), 0, 0, 0, 2.4, .7, 1.2, { op: .9, col: c }));
+        return Math.abs(x) < 155;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- giant soap bubbles drifting up and popping
+  function evBubbles(){
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: .22, roughness: 0, metalness: 0, iridescence: 1, iridescenceIOR: 1.3, clearcoat: 1, depthWrite: false });
+    const bs = [];
+    for (let i = 0; i < 10; i++){ const m = new THREE.Mesh(sph, mat); const r = Rn(1.2, 3.5); m.scale.setScalar(r); m.position.set(Rn(-70, 70), -r, Rn(-15, 35)); scene.add(m); bs.push({ m, r, vy: Rn(1.2, 2.6), at: Rn(0, 3), pop: Rn(5, 10), ph: Rn(0, 6), gone: false }); }
+    let t = 0;
+    return { kind: "bubbles",
+      update(dt){
+        t += dt;
+        for (const b of bs){
+          if (b.gone || t < b.at) continue;
+          b.m.position.y += b.vy * dt; b.m.position.x += Math.sin(t + b.ph) * dt; b.m.scale.set(b.r * (1 + Math.sin(t * 3 + b.ph) * .05), b.r * (1 - Math.sin(t * 3 + b.ph) * .05), b.r);
+          if (t > b.at + b.pop){ b.gone = true; b.m.visible = false; for (let i = 0; i < 10; i++) emit(smokePool, b.m.position, Rn(-3, 3), Rn(-3, 3), Rn(-3, 3), .5, .4, .1, { op: .8, col: [.9, .95, 1] }); }
+        }
+        return bs.some(b => !b.gone);
+      },
+      dispose(){ bs.forEach(b => scene.remove(b.m)); mat.dispose(); } };
+  }
+
+  // ---- swimming race
+  function evSwimRace(){
+    const dir = pick([-1, 1]), z0 = Rn(10, 30), sw = [];
+    for (let i = 0; i < 4; i++){ const h = new THREE.Group(), p = makePerson(); h.add(p); p.rotation.z = -Math.PI / 2; h.rotation.y = dir > 0 ? 0 : Math.PI; scene.add(h); const craft = { pos: V(0, 0, 0), fwd: V(dir, 0, 0), len: 2.6, beam: 1, speed: 2 }; eventCraft.add(craft); sw.push({ h, p, x: dir * -55, z: z0 + i * 3, v: Rn(2.6, 3.4), craft }); }
+    let t = 0;
+    return { kind: "swimrace",
+      update(dt){
+        t += dt; let any = false;
+        sw.forEach((s, i) => {
+          s.v = clamp(s.v + Rn(-1, 1) * dt, 2.2, 4); s.x += dir * s.v * dt;
+          s.h.position.set(s.x, surf(s.x, s.z) - .3, s.z); const w = t * 8 + i; pose(s.p, Math.sin(t * 16 + i) * .35, -Math.sin(t * 16 + i) * .35, w, w + Math.PI);
+          s.craft.pos.set(s.x, 0, s.z); s.craft.speed = s.v;
+          if (Math.abs(s.x) < 100) any = true;
+        });
+        return any && t < 70;
+      },
+      dispose(){ sw.forEach(s => { scene.remove(s.h); disposeTree(s.h); eventCraft.delete(s.craft); }); } };
+  }
+
+  // ---- crab conga on a floating log
+  function evCrabs(){
+    const g = new THREE.Group(), log = new THREE.Mesh(new THREE.CylinderGeometry(.8, .9, 12, 12), std(0x6b4423, { roughness: .95 })); log.rotation.z = Math.PI / 2; g.add(log);
+    const red = std(0xe0402a, { roughness: .5 }), crabs = [];
+    for (let i = 0; i < 6; i++){
+      const c = new THREE.Group(); c.add(ball(1, red, 0, 0, 0, .7, .35, .55));
+      for (const sd of [1, -1]){ const cl = ball(.28, red, .6, .25, .55 * sd); c.add(cl); for (let k = 0; k < 3; k++){ const l = box(.07, .5, .07, red, -.3 + k * .3, -.2, .55 * sd); l.rotation.x = sd * .7; c.add(l); } }
+      c.add(ball(.08, std(0x111111), .55, .45, .15), ball(.08, std(0x111111), .55, .45, -.15));
+      c.position.set(-5 + i * 2, 1.1, 0); c.scale.setScalar(1.4); g.add(c); crabs.push(c);
+    }
+    scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(6, 32), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 12, beam: 1.8, speed: 1 }; eventCraft.add(craft); let t = 0;
+    return { kind: "crabs",
+      update(dt){
+        t += dt; const x = dir * (-110 + 5 * t);
+        g.position.set(x, surf(x, z) - .1, z); g.rotation.set(Math.sin(t * 1.2) * .08, 0, Math.sin(t * .9) * .05);
+        crabs.forEach((c, i) => { c.position.y = 1.1 + Math.abs(Math.sin(t * 7 + i)) * .5; c.rotation.y = Math.sin(t * 4 + i) * .5; });
+        craft.pos.set(x, 0, z);
+        return Math.abs(x) < 115;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- kitesurfer doing big jumps
+  function evKitesurf(){
+    const h = new THREE.Group(), p = makePerson(); h.add(p); pose(p, .3, -.3, 2.4, 2.2);
+    h.add(box(2.2, .12, .6, std(0xffd23f), 0, .05, 0));
+    const kite = new THREE.Mesh(new THREE.SphereGeometry(6, 16, 6, 0, Math.PI * 2, 0, Math.PI / 5), std(0xff3b50, { side: THREE.DoubleSide, roughness: .6 }));
+    scene.add(h, kite);
+    const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([V(), V(), V(), V()]), new THREE.LineBasicMaterial({ color: 0xdddddd, transparent: true, opacity: .6 })); lines.frustumCulled = false; scene.add(lines);
+    const dir = pick([-1, 1]), z = Rn(8, 34), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 2.2, beam: .8, speed: 9 }; eventCraft.add(craft);
+    let t = 0, jt = -1, nextJump = Rn(2, 4);
+    return { kind: "kitesurf",
+      update(dt){
+        t += dt; const x = dir * (-120 + 12 * t);
+        if (jt < 0 && t > nextJump) jt = 0;
+        let air = 0;
+        if (jt >= 0){ jt += dt; air = Math.sin(Math.min(1, jt / 2.2) * Math.PI) * 9; if (jt > 2.2){ splashAt(V(x, 0, z), 1.4); jt = -1; nextJump = t + Rn(2.5, 5); } }
+        h.position.set(x, surf(x, z) + air, z); h.rotation.set(0, dir > 0 ? 0 : Math.PI, jt >= 0 ? -dir * jt / 2.2 * Math.PI * 2 * 0 : 0);
+        p.rotation.y = jt >= 0 ? jt / 2.2 * Math.PI * 2 : 0;
+        kite.position.set(x + dir * 12, 13 + air * .5 + Math.sin(t) * 1, z - 4); kite.rotation.set(Math.PI / 2, 0, dir * .5);
+        const hand = h.position.clone().add(V(0, 2.6, 0));
+        lines.geometry.setFromPoints([hand, kite.position.clone().add(V(-4, -1, 0)), hand, kite.position.clone().add(V(4, -1, 0))]);
+        craft.pos.set(x, 0, z); craft.speed = air > .5 ? 0 : 9;
+        return Math.abs(x) < 125;
+      },
+      dispose(){ [h, kite].forEach(o => { scene.remove(o); disposeTree(o); }); scene.remove(lines); lines.geometry.dispose(); lines.material.dispose(); eventCraft.delete(craft); } };
+  }
+
+  // ---- speedboat towing a water-skier
+  function evWaterski(){
+    const boat = new THREE.Group(), hull = std(0xf4f6fa, { roughness: .3 });
+    boat.add(box(5, .9, 2, hull, 0, .45, 0), box(1.4, .6, 1.8, std(0x1f5fbf), -.4, 1.1, 0));
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1, 1.6, 4), hull); nose.rotation.z = -Math.PI / 2; nose.rotation.x = Math.PI / 4; nose.position.set(3.2, .45, 0); boat.add(nose);
+    const skier = new THREE.Group(), p = makePerson(); skier.add(p, box(1.8, .08, .25, std(0xff8a3d), 0, .05, .25), box(1.8, .08, .25, std(0xff8a3d), 0, .05, -.25)); pose(p, .3, .3, 1.3, 1.3); p.rotation.z = -.25;
+    scene.add(boat, skier);
+    const rope = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(), V()]), new THREE.LineBasicMaterial({ color: 0xeeeeee })); rope.frustumCulled = false; scene.add(rope);
+    const dir = pick([-1, 1]), z = Rn(8, 34), cb = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 5, beam: 2, speed: 14 }, cs = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 2, beam: 1, speed: 10 };
+    eventCraft.add(cb); eventCraft.add(cs); let t = 0, acc = 0;
+    return { kind: "waterski",
+      update(dt){
+        t += dt; const bx = dir * (-150 + 22 * t), sx = bx - dir * 16, sz = z + Math.sin(t * 1.4) * 5;
+        boat.position.set(bx, surf(bx, z) - .1, z); boat.rotation.set(0, dir > 0 ? 0 : Math.PI, .08);
+        const jump = Math.max(0, Math.sin(t * .9)) ** 12 * 4;
+        skier.position.set(sx, surf(sx, sz) + jump, sz); skier.rotation.set(Math.sin(t * 1.4) * .25 * dir, dir > 0 ? 0 : Math.PI, 0);
+        rope.geometry.setFromPoints([V(bx - dir * 2.5, 1.2, z), V(sx + dir * .4, 2.3 + jump, sz)]);
+        acc += dt; while (acc > .03){ acc -= .03; emit(smokePool, V(sx - dir * 1, .3, sz), -dir * Rn(2, 5), Rn(1.5, 3.5), Rn(-1.5, 1.5), .9, .5, 2.2, { op: .6, col: SPRAY }); }
+        cb.pos.set(bx, 0, z); cs.pos.set(sx, 0, sz); cs.speed = jump > .3 ? 0 : 10;
+        return t < 1 || Math.abs(sx) < 175;
+      },
+      dispose(){ [boat, skier].forEach(o => { scene.remove(o); disposeTree(o); }); scene.remove(rope); rope.geometry.dispose(); rope.material.dispose(); eventCraft.delete(cb); eventCraft.delete(cs); } };
+  }
+
   const EVENT_TYPES = [["jumper", evJumper, 3], ["shark", evShark, 2], ["dolphins", evDolphins, 2], ["ufo", evUFO, 2], ["fireworks", evFireworks, 1.5],
                        ["kraken", evKraken, 1.5], ["duck", evDuck, 1], ["jetski", evJetski, 2], ["whale", evWhale, 1.5], ["balloon", evBalloon, 1],
                        ["nessie", evNessie, 1.5], ["heli", evHeli, 1.5], ["dragon", evDragon, 1.5], ["lightning", evLightning, 1.2],
                        ["sub", evSub, 1.4], ["rocket", evRocket, 1.3], ["skydivers", evSkydivers, 1.4], ["flyingfish", evFlyingFish, 1.4], ["santa", evSanta, 1],
-                       ["pirate", evPirate, 1.4], ["paddle", evPaddle, 1.4], ["jetpack", evJetpack, 1.3]];
+                       ["pirate", evPirate, 1.4], ["paddle", evPaddle, 1.4], ["jetpack", evJetpack, 1.3],
+                       ["kaiju", evKaiju, 1.3], ["waterspout", evWaterspout, 1.2], ["invaders", evInvaders, 1.4], ["humancannon", evHumanCannon, 1.4], ["unicorn", evUnicorn, 1.2],
+                       ["bubbles", evBubbles, 1.3], ["swimrace", evSwimRace, 1.3], ["crabs", evCrabs, 1.3], ["kitesurf", evKitesurf, 1.4], ["waterski", evWaterski, 1.4]];
   function startEvent(kind){
     const busy = new Set(activeEvents.map(e => e.kind));
     let entry;

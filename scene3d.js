@@ -1,10 +1,9 @@
 // 3D bridge scene (optional; loaded only when the "3D" toggle is on).
-// Twin Sails (left) and Poole Bridge (right) as detailed 3D models: reflective water, night
+// Twin Sails (left) and Poole Bridge (right) as detailed 3D models: physically based water, night
 // lighting with bloom, lattice girders, hydraulic rams, barrier arms, traffic that queues for
 // lifts, boats, a waterfront, and the last-minute stunt car.
 // Units are metres; roads run along x, the channel runs along z, y is up.
 import * as THREE from "three";
-import { Water } from "three/addons/objects/Water.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -29,20 +28,295 @@ const STATE_COLORS = { BOTH: 0x2de2c4, POOLE: 0x7b5cff, TWIN: 0xff6fa8, OTHER: 0
 let seed = 11;                                   // deterministic "random" so the town looks the same every load
 const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
-// ---------------------------------------------------------------- procedural textures
-function waterNormals(){
-  const N = 256, data = new Uint8Array(N * N * 4);
-  const waves = [[3, 1, .8, .1], [1, 4, .6, 1.7], [5, 3, .35, 2.4], [7, -2, .25, .6], [2, 7, .3, 3.1], [11, 5, .12, 1.2], [4, -9, .14, .4]];
-  const h = (x, y) => waves.reduce((s, [kx, ky, a, p]) => s + a * Math.sin(2 * Math.PI * (kx * x + ky * y) / N + p), 0);
+// ---------------------------------------------------------------- water: swell, ripples, shaders
+// Swell: Gerstner waves [heading (deg; 90 = towards the camera), wavelength (m), amplitude (m)].
+// Speeds follow deep-water dispersion (w = sqrt(g k)); steepness is shared so crests sharpen but
+// never loop. The first VERTEX_WAVES are long enough to displace the mesh; the rest only shade.
+const VERTEX_WAVES = 3;
+const WAVES = [[100, 16, .17, .3], [72, 11, .12, 2.1], [124, 7.2, .08, 4.4], [88, 4.7, .05, 1.2], [55, 3.2, .032, 5.3], [140, 2.3, .02, 3.7]]
+  .map(([deg, L, A, phi], _, all) => {
+    const a = deg * Math.PI / 180, k = 2 * Math.PI / L;
+    return { dx: Math.cos(a), dz: Math.sin(a), k, A, w: Math.sqrt(9.81 * k), phi, Q: .6 / (k * A * all.length) };
+  });
+function waveHeight(x, z, t){                    // matches the displaced mesh (vertex waves only)
+  let h = 0;
+  for (let i = 0; i < VERTEX_WAVES; i++){ const w = WAVES[i]; h += w.A * Math.sin(w.k * (w.dx * x + w.dz * z) - w.w * t + w.phi); }
+  return h;
+}
+const f5 = v => v.toFixed(5);
+const WAVE_GLSL = `
+const int NW = ${WAVES.length};
+const int NVW = ${VERTEX_WAVES};
+const vec4 WA[NW] = vec4[NW](${WAVES.map(w => `vec4(${f5(w.dx)}, ${f5(w.dz)}, ${f5(w.k)}, ${f5(w.A)})`).join(", ")});
+const vec3 WB[NW] = vec3[NW](${WAVES.map(w => `vec3(${f5(w.w)}, ${f5(w.phi)}, ${f5(w.Q)})`).join(", ")});
+`;
+// Wind ripples: a tileable normal map built from a power-law spectrum of sines on integer wave
+// vectors (so it wraps seamlessly), biased along the wind. Mipmapped, so distant water averages
+// its normals; the shortened average is read back as extra roughness (Toksvig).
+function rippleNormals(){
+  const N = 256, waves = [];
+  let sd = 7; const r = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 64; i++){
+    let kx, ky; do { kx = Math.round((r() * 2 - 1) * 30); ky = Math.round((r() * 2 - 1) * 30); } while (kx * kx + ky * ky < 5);
+    const k = Math.hypot(kx, ky), along = Math.abs(ky) / k;
+    waves.push([kx, ky, Math.pow(k, -1.8) * (.3 + .7 * along * along), r() * Math.PI * 2]);
+  }
+  const gx = new Float32Array(N * N), gy = new Float32Array(N * N); let sum2 = 0;
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
-    const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1);
-    const nx = -dx * 2.2, ny = -dy * 2.2, nz = 1, l = Math.hypot(nx, ny, nz), i = (y * N + x) * 4;
-    data[i] = (nx / l * .5 + .5) * 255; data[i + 1] = (ny / l * .5 + .5) * 255; data[i + 2] = (nz / l * .5 + .5) * 255; data[i + 3] = 255;
+    let ax = 0, ay = 0;
+    for (const [kx, ky, a, p] of waves){ const c = a * 2 * Math.PI / N * Math.cos(2 * Math.PI * (kx * x + ky * y) / N + p); ax += c * kx; ay += c * ky; }
+    gx[y * N + x] = ax; gy[y * N + x] = ay; sum2 += ax * ax + ay * ay;
+  }
+  const scale = .22 / Math.sqrt(sum2 / (N * N)), data = new Uint8Array(N * N * 4);   // rms slope ~0.22
+  for (let i = 0; i < N * N; i++){
+    const nx = -gx[i] * scale, ny = -gy[i] * scale, l = Math.hypot(nx, ny, 1);
+    data[i * 4] = (nx / l * .5 + .5) * 255; data[i * 4 + 1] = (ny / l * .5 + .5) * 255; data[i * 4 + 2] = (1 / l * .5 + .5) * 255; data[i * 4 + 3] = 255;
   }
   const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.needsUpdate = true;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
   return t;
 }
+// Water mesh: a grid whose spacing is fine in front of the camera and coarse towards the horizon.
+function waterGrid(){
+  const NX = 280, NZ = 220, pos = new Float32Array((NX + 1) * (NZ + 1) * 3), idx = [];
+  const warp = u => .25 * u + .75 * u ** 5;                   // u in [-1, 1]
+  let k = 0;
+  for (let j = 0; j <= NZ; j++){
+    const z = 45 + 650 * warp(j / NZ * 2 - 1);
+    for (let i = 0; i <= NX; i++){ pos[k++] = 620 * warp(i / NX * 2 - 1); pos[k++] = 0; pos[k++] = z; }
+  }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++){
+    const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setIndex(idx);
+  g.computeBoundingSphere(); g.boundingSphere.radius += 2;
+  return g;
+}
+const MAX_OB = 24, MAX_BOATS = 12, MAX_RIPPLES = 4;
+const WATER_VS = /* glsl */`
+uniform float time;
+varying vec3 vWorld;
+varying vec2 vGrid;
+varying float vCrest;
+#include <common>
+#include <fog_pars_vertex>
+${WAVE_GLSL}
+void main(){
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vec2 p = wp.xz;
+  float fade = 1.0 - smoothstep(180.0, 420.0, length(p - cameraPosition.xz));
+  vec3 d = vec3(0.0);
+  float crest = 0.0;
+  for (int i = 0; i < NVW; i++){
+    float ph = WA[i].z * dot(WA[i].xy, p) - WB[i].x * time + WB[i].y;
+    float s = sin(ph), c = cos(ph);
+    d.xz += WB[i].z * WA[i].w * WA[i].xy * c;
+    d.y += WA[i].w * s;
+    crest += WA[i].w * s;
+  }
+  wp.xyz += d * fade;
+  vGrid = p; vWorld = wp.xyz; vCrest = crest * fade;
+  vec4 mvPosition = viewMatrix * wp;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+const WATER_FS = /* glsl */`
+#define MAX_OB ${MAX_OB}
+#define MAX_BOATS ${MAX_BOATS}
+#define MAX_RIPPLES ${MAX_RIPPLES}
+uniform sampler2D mirror;
+uniform mat4 textureMatrix;
+uniform sampler2D ripplesTex;
+uniform float time;
+uniform vec3 moonDir;
+uniform vec3 moonColor;         // the moon's irradiance (a small, bright disc)
+uniform vec3 deepColor;
+uniform vec3 scatterColor;
+uniform vec3 ambient;
+uniform vec4 obA[MAX_OB];        // centre x, z, half extents along the box axes
+uniform vec2 obB[MAX_OB];        // the box's x axis in world x/z
+uniform int obN;
+uniform vec4 boatA[MAX_BOATS];   // position x, z, heading x, z
+uniform vec4 boatB[MAX_BOATS];   // half length, half beam, speed (m/s)
+uniform int boatN;
+uniform vec4 ripples[MAX_RIPPLES]; // x, z, age (s), strength
+varying vec3 vWorld;
+varying vec2 vGrid;
+varying float vCrest;
+#include <common>
+#include <fog_pars_fragment>
+#include <lights_pars_begin>
+${WAVE_GLSL}
+
+float hash(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p){ return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.13 + 7.1) + 0.15 * vnoise(p * 4.37 + 3.3); }
+
+// Boat hulls, bow waves, Kelvin wakes and splash rings: x = surface height (m), y = foam
+vec2 dynamicSurface(vec2 p){
+  float h = 0.0, foam = 0.0;
+  for (int i = 0; i < MAX_BOATS; i++){
+    if (i >= boatN) break;
+    vec2 d = p - boatA[i].xy, f = boatA[i].zw;
+    float hl = boatB[i].x, hb = boatB[i].y, sp = boatB[i].z;
+    float reach = hl + 8.0 + sp * 10.0;
+    if (dot(d, d) > reach * reach) continue;
+    float along = dot(d, f), lat = dot(d, vec2(-f.y, f.x));
+    float t = clamp(along, -hl + hb, hl - hb);
+    float dh = length(d - f * t) - hb;                         // distance from the hull (a capsule)
+    float spf = clamp(sp / 8.0, 0.0, 1.0);
+    float bow = smoothstep(-hl * 0.2, hl, along);
+    float near = exp(-max(dh, 0.0) / (0.5 + 0.8 * spf));
+    foam += near * (0.3 + 0.9 * spf * (0.35 + bow));             // waterline froth, heaviest at the bow
+    h += 0.22 * spf * bow * exp(-max(dh, 0.0) / 1.1);           // bow wave
+    float behind = -along - hl;                                // distance astern of the transom
+    if (behind > 0.0 && sp > 0.3){
+      float spread = 0.354 * behind + hb * 0.7;                // Kelvin wedge: 19.47 degrees
+      float fade = exp(-behind / (10.0 + sp * 5.0));
+      float arm = abs(abs(lat) - spread);
+      foam += spf * fade * exp(-arm / (0.45 + 0.07 * behind)) * 1.1;                                  // the two wake arms
+      foam += spf * exp(-behind / (6.0 + sp * 2.5)) * exp(-abs(lat) / (hb * 0.8 + 0.1 * behind)) * 1.5;  // prop wash
+      float inside = 1.0 - smoothstep(spread - 0.5, spread + 1.5, abs(lat));
+      h += spf * fade * (0.1 * inside * sin(1.5 * (0.6 * behind + 0.8 * abs(lat))) + 0.14 * exp(-arm / 0.8));
+    }
+  }
+  for (int i = 0; i < MAX_RIPPLES; i++){
+    vec4 r = ripples[i];
+    if (r.w <= 0.0) continue;
+    float d = length(p - r.xy), front = r.z * 5.5, env = exp(-r.z * 0.5) * r.w;
+    float bx = (d - front) / (1.2 + r.z * 0.5), band = exp(-bx * bx);
+    h += env * 0.35 * band * sin(d * 2.8 - r.z * 13.0);
+    foam += env * (band * 0.9 * exp(-r.z * 0.6) + exp(-d / (1.5 + r.z)) * exp(-r.z * 0.9) * 1.4);
+  }
+  return vec2(h, foam);
+}
+float obstacleDist(vec2 p){                                   // distance to piers, towers, piles and quays
+  float dmin = 1e4;
+  for (int i = 0; i < MAX_OB; i++){
+    if (i >= obN) break;
+    vec2 q = p - obA[i].xy;
+    q = vec2(dot(q, obB[i]), dot(q, vec2(-obB[i].y, obB[i].x)));
+    vec2 e = abs(q) - obA[i].zw;
+    dmin = min(dmin, length(max(e, 0.0)) + min(max(e.x, e.y), 0.0));
+  }
+  return dmin;
+}
+float ggxSpec(vec3 N, vec3 V, vec3 L, float a){                // GGX, Smith-Schlick, Fresnel (F0 = 0.02); times N.L
+  vec3 H = normalize(L + V);
+  float NL = max(dot(N, L), 0.0), NV = max(dot(N, V), 1e-3), NH = max(dot(N, H), 0.0), VH = max(dot(V, H), 0.0);
+  float a2 = a * a, dd = NH * NH * (a2 - 1.0) + 1.0, D = a2 / (PI * dd * dd);
+  float k = a * 0.5, G = NL / (NL * (1.0 - k) + k) * NV / (NV * (1.0 - k) + k);
+  float F = 0.02 + 0.98 * pow(clamp(1.0 - VH, 0.0, 1.0), 5.0);
+  return D * G * F / (4.0 * NV * max(NL, 1e-3)) * NL;
+}
+
+void main(){
+  vec3 toEye = cameraPosition - vWorld;
+  float dist = length(toEye);
+  vec3 V = toEye / dist;
+  vec2 p = vGrid;
+  float foot = max(length(dFdx(p)), length(dFdy(p))) + 1e-4;   // metres of water under this pixel
+
+  // 1. swell: analytic Gerstner slopes; waves too short for the pixel fade out and become roughness
+  vec2 slope = vec2(0.0);
+  float ny = 1.0, variance = 0.0;
+  for (int i = 0; i < NW; i++){
+    float L = 6.2831853 / WA[i].z;
+    float lod = smoothstep(1.5, 5.0, L / foot);
+    float ph = WA[i].z * dot(WA[i].xy, p) - WB[i].x * time + WB[i].y;
+    float kA = WA[i].z * WA[i].w;
+    slope += WA[i].xy * kA * cos(ph) * lod;
+    ny -= WB[i].z * kA * sin(ph) * lod;
+    variance += 0.5 * kA * kA * (1.0 - lod);
+  }
+  slope /= max(ny, 0.3);
+
+  // 2. wind ripples: two drifting layers of the tileable normal map (Toksvig roughness from the mips)
+  vec3 t1 = texture2D(ripplesTex, p / 9.0 + time * vec2(0.013, 0.021)).xyz * 2.0 - 1.0;
+  vec3 t2 = texture2D(ripplesTex, mat2(0.8, -0.6, 0.6, 0.8) * p / 3.4 + time * vec2(-0.031, 0.017)).xyz * 2.0 - 1.0;
+  float l1 = length(t1), l2 = length(t2);
+  slope -= 0.7 * t1.xy / max(t1.z, 0.2) + 0.4 * t2.xy / max(t2.z, 0.2);
+  variance += 0.5 * (0.49 * (1.0 - l1) / l1 + 0.16 * (1.0 - l2) / l2);
+
+  // 3. boats and splashes: a height field, differentiated numerically
+  vec2 dyn = dynamicSurface(p);
+  const float E = 0.18;
+  slope += vec2(dynamicSurface(p + vec2(E, 0.0)).x - dyn.x, dynamicSurface(p + vec2(0.0, E)).x - dyn.x) / E;
+
+  vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
+  float NV = dot(N, V);
+  if (NV < 0.02){ N = normalize(N + V * (0.02 - NV)); NV = 0.02; }   // no back-facing micro-normals at grazing angles
+  float rough = sqrt(0.0025 + variance);
+
+  // 4. reflection: planar mirror, looked up along the perturbed reflected ray against a proxy
+  //    distance (so ripples shift the image physically: mostly vertically at grazing angles), then
+  //    blurred vertically by the roughness to draw the long light pillars of night-time water
+  vec3 R = reflect(-V, N); R.y = abs(R.y);
+  vec4 pc = textureMatrix * vec4(vWorld + R * clamp(dist * 0.3, 5.0, 40.0), 1.0);
+  vec2 uv = pc.xy / pc.w;
+  float spread = clamp(rough * 0.03, 0.001, 0.012);
+  vec3 refl = texture2D(mirror, clamp(uv, 0.001, 0.999)).rgb * 0.36;
+  refl += texture2D(mirror, clamp(uv + vec2(0.0, spread), 0.001, 0.999)).rgb * 0.2;
+  refl += texture2D(mirror, clamp(uv - vec2(0.0, spread), 0.001, 0.999)).rgb * 0.2;
+  refl += texture2D(mirror, clamp(uv + vec2(0.0, spread * 2.5), 0.001, 0.999)).rgb * 0.12;
+  refl += texture2D(mirror, clamp(uv - vec2(0.0, spread * 2.5), 0.001, 0.999)).rgb * 0.12;
+  float F = 0.02 + 0.98 * pow(clamp(1.0 - NV, 0.0, 1.0), 5.0);
+
+  // 5. direct light: the moon's glitter path, plus a GGX glint and underwater glow for every lamp
+  vec3 spec = moonColor * ggxSpec(N, V, moonDir, max(rough, 0.045));
+  vec3 vPos = (viewMatrix * vec4(vWorld, 1.0)).xyz, vN = normalize((viewMatrix * vec4(N, 0.0)).xyz), vV = normalize(-vPos);
+  vec3 vUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  float aL = max(rough, 0.06);
+  vec3 irradiance = ambient;
+  IncidentLight il;
+  #if NUM_POINT_LIGHTS > 0
+  #pragma unroll_loop_start
+  for ( int i = 0; i < NUM_POINT_LIGHTS; i ++ ) {
+    getPointLightInfo( pointLights[ i ], vPos, il );
+    spec += il.color * ggxSpec( vN, vV, il.direction, aL );
+    irradiance += il.color * max( dot( vUp, il.direction ), 0.0 );
+  }
+  #pragma unroll_loop_end
+  #endif
+  #if NUM_SPOT_LIGHTS > 0
+  #pragma unroll_loop_start
+  for ( int i = 0; i < NUM_SPOT_LIGHTS; i ++ ) {
+    getSpotLightInfo( spotLights[ i ], vPos, il );
+    spec += il.color * ggxSpec( vN, vV, il.direction, aL );
+    irradiance += il.color * max( dot( vUp, il.direction ), 0.0 );
+  }
+  #pragma unroll_loop_end
+  #endif
+  spec = min(spec, vec3(12.0));
+
+  // 6. the water body: nearly black, with light scattered back out under lamps and through crests
+  float crest = pow(clamp(vCrest * 2.2 + 0.2, 0.0, 1.0), 2.0);
+  vec3 body = deepColor + scatterColor * (irradiance * 0.05 + 0.1 * crest * ambient);
+
+  // 7. foam: lapping at every pier and quay, around hulls, in wakes and splash rings
+  float od = obstacleDist(p);
+  float n1 = fbm(p * 0.9 + vec2(time * 0.11, -time * 0.07)), n2 = fbm(p * 2.6 - vec2(time * 0.05, time * 0.23));
+  float lap = exp(-max(od, 0.0) / 2.2) * (0.7 + 0.3 * sin(od * 2.0 - time * 1.9 + n1 * 4.0));
+  float foam = smoothstep(0.0, 0.5, (lap * 1.2 + dyn.y) * (n1 + 0.45) - 0.4 * n2 - 0.06);
+  foam *= 1.0 - smoothstep(250.0, 450.0, dist);
+  vec3 foamCol = vec3(0.8, 0.86, 0.94) * (irradiance * 2.0 + 0.03);   // bright, rough and diffuse
+
+  vec3 col = F * refl + (1.0 - F) * body + spec * (1.0 - foam);
+  col = mix(col, foamCol, foam * 0.9);
+  if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  #include <fog_fragment>
+}`;
+
+// ---------------------------------------------------------------- procedural textures
 function canvasTex(w, h, draw, srgb = true){
   const c = document.createElement("canvas"); c.width = w; c.height = h;
   draw(c.getContext("2d"), w, h);
@@ -265,11 +539,12 @@ export function create(container){
   // moon, halo, stars
   const moon = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 16), new THREE.MeshBasicMaterial({ color: 0xfff6dc, fog: false }));
   moon.position.set(60, 95, -420); scene.add(moon);
+  moon.layers.set(1); camera.layers.enable(1);        // layer 1: seen by the camera, not by the water's mirror
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(128, 128, (g, w) => {
     const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
     r.addColorStop(0, "rgba(255,246,220,.55)"); r.addColorStop(.3, "rgba(255,246,220,.12)"); r.addColorStop(1, "rgba(255,246,220,0)");
     g.fillStyle = r; g.fillRect(0, 0, w, w); }), transparent: true, depthWrite: false, fog: false }));
-  halo.scale.set(120, 120, 1); halo.position.copy(moon.position); scene.add(halo);
+  halo.scale.set(120, 120, 1); halo.position.copy(moon.position); halo.layers.set(1); scene.add(halo);
   const starGeo = new THREE.BufferGeometry(), starPos = [];
   for (let i = 0; i < 700; i++){
     const th = rand() * Math.PI * 2, ph = rand() * Math.PI * .42 + .08, r = 1400;
@@ -278,13 +553,64 @@ export function create(container){
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
   scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .8 })));
 
-  // water
-  const water = new Water(new THREE.PlaneGeometry(1200, 1200), {
-    textureWidth: 512, textureHeight: 512, waterNormals: waterNormals(),
-    sunDirection: new THREE.Vector3(-.4, .8, .45).normalize(), sunColor: 0x5d73b8, waterColor: 0x020915,
-    distortionScale: 1.7, fog: true,
-  });
-  water.rotation.x = -Math.PI / 2; water.material.uniforms.size.value = 4.5; scene.add(water);
+  // water: Gerstner swell on an adaptive grid, a half-float planar mirror, GGX glints from the moon
+  // and every lamp, Fresnel, and foam from signed distances to the piers, hulls and wakes
+  const lin = (r, g, b) => new THREE.Color().setRGB(r, g, b);
+  const mirrorRT = new THREE.WebGLRenderTarget(512, 256, { type: THREE.HalfFloatType });
+  const textureMatrix = new THREE.Matrix4(), mirrorCam = new THREE.PerspectiveCamera();
+  const rippleTex = rippleNormals(); rippleTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const wu = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, THREE.UniformsLib.lights, {
+    time: { value: 0 }, textureMatrix: { value: null }, mirror: { value: null }, ripplesTex: { value: null },
+    moonDir: { value: V(0, 0, 0) }, moonColor: { value: lin(.07, .064, .05) }, deepColor: { value: lin(.0015, .004, .009) },
+    scatterColor: { value: lin(.02, .12, .1) }, ambient: { value: lin(.045, .055, .085) },
+    obA: { value: [] }, obB: { value: [] }, obN: { value: 0 }, boatA: { value: [] }, boatB: { value: [] }, boatN: { value: 0 }, ripples: { value: [] },
+  }]);
+  wu.textureMatrix.value = textureMatrix; wu.mirror.value = mirrorRT.texture; wu.ripplesTex.value = rippleTex;
+  wu.moonDir.value.copy(moon.position).normalize();
+  wu.obA.value = Array.from({ length: MAX_OB }, () => new THREE.Vector4()); wu.obB.value = Array.from({ length: MAX_OB }, () => new THREE.Vector2(1, 0));
+  wu.boatA.value = Array.from({ length: MAX_BOATS }, () => new THREE.Vector4()); wu.boatB.value = Array.from({ length: MAX_BOATS }, () => new THREE.Vector4());
+  wu.ripples.value = Array.from({ length: MAX_RIPPLES }, () => new THREE.Vector4(0, 0, 0, 0));   // w = strength; 0 = unused
+  const water = new THREE.Mesh(waterGrid(), renderer.capabilities.isWebGL2
+    ? new THREE.ShaderMaterial({ uniforms: wu, vertexShader: WATER_VS, fragmentShader: WATER_FS, fog: true, lights: true })
+    : std(0x020915, { roughness: .2, metalness: .6 }));                      // (WebGL1 fallback)
+  scene.add(water);
+  {
+    // planar reflection (as three's Water/Reflector): mirror the camera in y = 0, clip below the plane
+    const up = V(0, 1, 0), mwp = V(0, 0, 0), cwp = V(0, 0, 0), view = V(0, 0, 0), look = V(0, 0, 0), target = V(0, 0, 0);
+    const rot = new THREE.Matrix4(), plane = new THREE.Plane(), clip = new THREE.Vector4(), q = new THREE.Vector4();
+    water.onBeforeRender = (r, sc, cam) => {
+      if (!water.material.isShaderMaterial) return;
+      mwp.setFromMatrixPosition(water.matrixWorld); cwp.setFromMatrixPosition(cam.matrixWorld);
+      view.subVectors(mwp, cwp); if (view.dot(up) > 0) return;
+      view.reflect(up).negate().add(mwp);
+      rot.extractRotation(cam.matrixWorld);
+      look.set(0, 0, -1).applyMatrix4(rot).add(cwp);
+      target.subVectors(mwp, look).reflect(up).negate().add(mwp);
+      mirrorCam.position.copy(view); mirrorCam.up.set(0, 1, 0).applyMatrix4(rot).reflect(up); mirrorCam.lookAt(target);
+      mirrorCam.far = cam.far; mirrorCam.updateMatrixWorld(); mirrorCam.projectionMatrix.copy(cam.projectionMatrix);
+      textureMatrix.set(.5, 0, 0, .5, 0, .5, 0, .5, 0, 0, .5, .5, 0, 0, 0, 1).multiply(mirrorCam.projectionMatrix).multiply(mirrorCam.matrixWorldInverse);
+      plane.setFromNormalAndCoplanarPoint(up, mwp).applyMatrix4(mirrorCam.matrixWorldInverse);
+      clip.set(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
+      const pm = mirrorCam.projectionMatrix.elements;
+      q.set((Math.sign(clip.x) + pm[8]) / pm[0], (Math.sign(clip.y) + pm[9]) / pm[5], -1, (1 + pm[10]) / pm[14]);
+      clip.multiplyScalar(2 / clip.dot(q));
+      pm[2] = clip.x; pm[6] = clip.y; pm[10] = clip.z + 1; pm[14] = clip.w;
+      const prev = r.getRenderTarget();
+      water.visible = false;
+      r.setRenderTarget(mirrorRT); r.state.buffers.depth.setMask(true);
+      if (r.autoClear === false) r.clear();
+      r.render(sc, mirrorCam);
+      water.visible = true;
+      r.setRenderTarget(prev);
+      if (cam.viewport !== undefined) r.state.viewport(cam.viewport);
+    };
+  }
+  let waterTime = 0;
+  const ripples = wu.ripples.value;
+  function addRipple(x, z, strength){                // splash / explosion rings (oldest slot reused)
+    const slot = ripples.find(r => r.w <= 0) || ripples.reduce((a, r) => (r.z > a.z ? r : a));
+    slot.set(x, z, 0, strength);
+  }
 
   // far shore: a waterfront of buildings with lit windows
   const shore = new THREE.Group();
@@ -495,6 +821,22 @@ export function create(container){
   poole.solids = [[12.3, 20.5, poole.W / 2, poole.W / 2 + 3.6], [12.3, 20.5, -(poole.W / 2 + 3.6), -poole.W / 2], [51, 65, -17, 17]];
   poole.decks = [[12.3, 64.5, -poole.W / 2, poole.W / 2, poole.deck - 1]];
   poole.leafThick = 2.0;
+  {
+    // everything standing in the water, as world-space boxes for the shader's foam line
+    twin.group.updateMatrixWorld(); poole.group.updateMatrixWorld();
+    let n = 0;
+    const put = (cx, cz, hx, hz, ax, az) => { wu.obA.value[n].set(cx, cz, hx, hz); wu.obB.value[n].set(ax, az); n++; };
+    const piles = [[poole.hinge + .3, poole.hinge + 8.2, poole.W / 2 + 4.3, poole.W / 2 + 4.9], [poole.hinge + .3, poole.hinge + 8.2, -(poole.W / 2 + 4.9), -(poole.W / 2 + 4.3)]];
+    for (const [b, boxes] of [[twin, twin.solids], [poole, poole.solids.concat(piles)]]){
+      const ax = Math.cos(b.group.rotation.y), az = -Math.sin(b.group.rotation.y);
+      for (const [x0, x1, z0, z1] of boxes) for (const sx of [-1, 1]){
+        const c = b.group.localToWorld(V(sx * (x0 + x1) / 2, 0, (z0 + z1) / 2));
+        put(c.x, c.z, (x1 - x0) / 2, (z1 - z0) / 2, ax, az);
+      }
+    }
+    put(0, -180, 450, 30, 1, 0);                                             // far shore
+    wu.obN.value = n;
+  }
 
   // moored yachts along the quays
   twin.group.updateMatrixWorld(); poole.group.updateMatrixWorld();
@@ -559,6 +901,33 @@ export function create(container){
   twin.group.updateMatrixWorld(); poole.group.updateMatrixWorld();
   channel(twin, 1, -2, "yacht", 6, 0); channel(twin, -1, 2.5, "superyacht", 4.5, .5);
   channel(poole, 1, -1.8, "trawler", 5, 0); channel(poole, -1, 2, "tug", 4.2, .45); channel(poole, 1, .5, "yacht", 5.5, .7);
+  // Boats float on the swell: heave, pitch and roll come from the wave height at the bow, stern
+  // and both beams, low-passed for the hull's inertia.
+  const fwdR = V(0, 0, 0);
+  function ride(m, dt, base){
+    fwdR.set(1, 0, 0).applyQuaternion(m.quaternion); fwdR.y = 0; fwdR.normalize();
+    const u = m.userData, sc = m.scale.x, hl = m.dims.len / 2 * sc * .8, hb = m.dims.beam / 2 * sc, x = m.position.x, z = m.position.z;
+    const hB = waveHeight(x + fwdR.x * hl, z + fwdR.z * hl, waterTime), hS = waveHeight(x - fwdR.x * hl, z - fwdR.z * hl, waterTime);
+    const hP = waveHeight(x - fwdR.z * hb, z + fwdR.x * hb, waterTime), hQ = waveHeight(x + fwdR.z * hb, z - fwdR.x * hb, waterTime);
+    const k = 1 - Math.exp(-dt * 4);
+    u.heave = (u.heave ?? 0) + ((hB + hS + hP + hQ) / 4 - (u.heave ?? 0)) * k;
+    u.pitch = (u.pitch ?? 0) + (Math.atan2(hB - hS, 2 * hl) - (u.pitch ?? 0)) * k;
+    u.roll = (u.roll ?? 0) + (-Math.atan2(hP - hQ, 2 * hb) - (u.roll ?? 0)) * k;
+    m.position.y = base + u.heave;
+    m.rotateZ(u.pitch); m.rotateX(u.roll);
+  }
+  function feedWater(){
+    let n = 0;
+    for (const m of boats.concat(moored)){
+      if (!m.visible || m.userData.dead || n >= MAX_BOATS) continue;
+      const u = m.userData, sc = m.scale.x, moving = u.speed && (u.always || u.t > 0);
+      fwdR.set(1, 0, 0).applyQuaternion(m.quaternion); fwdR.y = 0; fwdR.normalize();
+      wu.boatA.value[n].set(m.position.x, m.position.z, fwdR.x, fwdR.z);
+      wu.boatB.value[n].set(m.dims.len / 2 * sc, m.dims.beam / 2 * sc, moving ? u.speed : 0, 0);
+      n++;
+    }
+    wu.boatN.value = n;
+  }
   function updateBoats(dt, t){
     for (const m of boats){
       const u = m.userData, len = u.from.distanceTo(u.to);
@@ -575,15 +944,16 @@ export function create(container){
       }
       m.visible = u.always || u.t > 0;
       m.position.lerpVectors(u.from, u.to, u.t);
-      m.position.y = .05 + Math.sin(t * 1.7 + u.t * 40) * .08;
       m.lookAt(u.to.x, m.position.y, u.to.z); m.rotateY(-Math.PI / 2);
-      m.rotation.z += Math.sin(t * 1.3 + len) * .02;
+      ride(m, dt, -.2);
     }
     for (const m of moored){
       if (m.userData.dead){ m.visible = t >= m.userData.respawnAt; if (m.visible) m.userData.dead = false; else continue; }
-      m.position.y = Math.sin(t * 1.1 + m.userData.phase) * .07; m.rotation.z = Math.sin(t * .9 + m.userData.phase) * .025;
+      if (m.userData.yaw === undefined) m.userData.yaw = m.rotation.y;
+      m.rotation.set(0, m.userData.yaw, 0); ride(m, dt, -.18);
     }
     checkCollisions(t);
+    feedWater();
   }
 
   // ------------------------------------------------------------ collisions and explosions
@@ -671,7 +1041,8 @@ export function create(container){
                   delay: rand() * .15, life: .9 + rand() * .7, size: (4 + rand() * 4.5) * k });
     }
     const ring = new THREE.Mesh(fxRing, new THREE.MeshBasicMaterial({ color: 0xffe2b8, transparent: true, opacity: .6, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = -pos.y + .08; g.add(ring);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = -pos.y + .55; g.add(ring);
+    addRipple(pos.x, pos.z, 1.6 * k);
     const debris = [];
     for (let i = 0; i < 22; i++){
       const d = new THREE.Mesh(fxBox, i % 3 === 0 ? emberMat : debrisMat), sz = (.2 + rand() * .55) * k;
@@ -749,15 +1120,14 @@ export function create(container){
     for (let i = 0; i < n; i++){ const a = rand() * Math.PI * 2, sp = 2 + rand() * 5; vel.push(V(Math.cos(a) * sp * .6, 6 + rand() * 8, Math.sin(a) * sp * .6)); }
     geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     const drops = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xeaf6ff, size: .35, transparent: true, opacity: 1 })); group.add(drops);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1.1, 48), new THREE.MeshBasicMaterial({ color: 0xdff3ff, transparent: true, opacity: .9, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2; ring.position.y = .06; group.add(ring);
+    addRipple(pos.x, pos.z, 1.2);                     // the ring and froth are drawn by the water shader
     const duck = new THREE.Group(), yellow = std(0xf2c230, { roughness: .4 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(.6, 16, 12), yellow); body.scale.set(1.3, .8, 1); duck.add(body);
     const head = new THREE.Mesh(new THREE.SphereGeometry(.38, 16, 12), yellow); head.position.set(.5, .6, 0); duck.add(head);
     const beak = new THREE.Mesh(new THREE.ConeGeometry(.12, .35, 10), std(0xff7a3c)); beak.rotation.z = -Math.PI / 2; beak.position.set(.95, .55, 0); duck.add(beak);
     for (const z of [.17, -.17]){ const eye = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), std(0x111111)); eye.position.set(.78, .72, z); duck.add(eye); }
     duck.scale.setScalar(1.2); duck.visible = false; group.add(duck);
-    return { group, drops, vel, ring, duck, t: 0 };
+    return { group, drops, vel, duck, t: 0 };
   }
   function updateStunt(b, dt, now){
     const st = b.stunt; if (!st) return;
@@ -793,7 +1163,6 @@ export function create(container){
       const pos = sp.drops.geometry.attributes.position;
       for (let i = 0; i < sp.vel.length; i++){ const v = sp.vel[i], k = sp.t; pos.setXYZ(i, v.x * k, Math.max(0, v.y * k - 9.8 * 1.6 * k * k), v.z * k); }
       pos.needsUpdate = true; sp.drops.material.opacity = clamp(1.4 - sp.t, 0, 1);
-      sp.ring.scale.setScalar(1 + sp.t * 6); sp.ring.material.opacity = clamp(.9 - sp.t * .6, 0, .9);
       if (sp.t > 1.6){ sp.duck.visible = true; sp.duck.position.y = Math.min(.3, (sp.t - 1.6) * 1.2 - .5) + Math.sin(now * 2.4) * .08; sp.duck.rotation.z = Math.sin(now * 1.8) * .12; }
     }
   }
@@ -840,6 +1209,7 @@ export function create(container){
   function resize(){
     const w = container.clientWidth || 800, h = container.clientHeight || 200;
     renderer.setSize(w, h, false); composer.setSize(w, h);
+    const pr = renderer.getPixelRatio(); mirrorRT.setSize(Math.max(64, Math.round(w * pr * .6)), Math.max(32, Math.round(h * pr * .6)));
     camera.aspect = w / h;
     const wide = camera.aspect > 2.2;
     camera.fov = wide ? 21 : 38;
@@ -850,7 +1220,8 @@ export function create(container){
   function frame(ms){
     raf = requestAnimationFrame(frame);
     const now = ms / 1000, dt = Math.min(.05, now - (last || now)); last = now;
-    water.material.uniforms.time.value += dt * .6;
+    waterTime += dt; wu.time.value = waterTime;
+    for (const r of ripples) if (r.w > 0){ r.z += dt; if (r.z > 9) r.w = 0; }
     if (!reduce){ camera.position.x = Math.sin(now * .05) * 5; camera.lookAt(0, 5, -8); }
     const realDt = Math.min(.25, now - (prevNow || now)); prevNow = now;
     for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, realDt); updateStunt(b, realDt, now); }
@@ -874,6 +1245,7 @@ export function create(container){
       const onRaised = bridges.map(b => b.p > .02 ? b.cars.filter(c => onSpan(b, c.userData.x)).length : 0);
       return { explosions: explosionCount, carsOnRaisedSpan: onRaised, p: bridges.map(b => +b.p.toFixed(3)) };
     },
+    _water(){ return { boats: wu.boatN.value, obstacles: wu.obN.value, boatA: wu.boatA.value.slice(0, wu.boatN.value).map(v => v.toArray().map(x => +x.toFixed(2))), boatB: wu.boatB.value.slice(0, wu.boatN.value).map(v => v.toArray().map(x => +x.toFixed(2))), ripples: ripples.map(v => v.toArray().map(x => +x.toFixed(2))) }; },
     _testCollision(){                    // puts the RIB and the launch head-on in view; used by the automated test
       const [rib, launch] = boats;
       rib.userData.dead = launch.userData.dead = false;

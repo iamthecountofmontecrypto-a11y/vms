@@ -1189,6 +1189,7 @@ export function create(container){
   // Everything a meteor can knock off a bridge: each child of the bridge group (lamps, barriers,
   // cars, rails, portals...) and each part of the lifting leaves -- but not the fixed foundations.
   function collectPieces(b){
+    if (!b.decks0) b.decks0 = b.decks;
     b.pieces = [];
     const add = o => { if (!o.isLight && !o.userData.fixed) b.pieces.push(o); };
     for (const c of b.group.children){
@@ -1278,10 +1279,12 @@ export function create(container){
       }
     }
   }
+  const charred = [];
   function char(o){                                                   // scorch a foundation that the blast reached
-    o.userData.charred = true;
+    o.userData.charred = true; charred.push(o);
     o.traverse(m => {
       if (!m.isMesh) return;
+      m.userData.origMat = m.material;
       const burn = x => { const n = x.clone(); if (n.color) n.color.multiplyScalar(.3); if (n.emissive) n.emissiveIntensity *= .35; return n; };
       m.material = Array.isArray(m.material) ? m.material.map(burn) : burn(m.material);
     });
@@ -1289,6 +1292,9 @@ export function create(container){
   function detach(b, o, p){
     o.userData.broken = true;
     const ci = b.cars.indexOf(o); if (ci >= 0) b.cars.splice(ci, 1);
+    // remember where it belongs, so the bridge can be put back together when the alarm clears
+    const rec = { b, o, parent: o.parent, pos: o.position.clone(), quat: o.quaternion.clone(), scl: o.scale.clone(), car: ci >= 0, lights: [] };
+    o.traverse(c => { if (c.isLight) rec.lights.push([c, c.intensity]); });
     bx.getCenter(c0); bx.getSize(sz);
     const size = Math.max(sz.x, sz.y, sz.z), k = 1 / (1 + size / 10);
     const pivot = new THREE.Group(); pivot.position.copy(c0); scene.add(pivot); pivot.attach(o);   // spin about the piece's own centre
@@ -1296,7 +1302,7 @@ export function create(container){
     const out = c0.clone().sub(p); out.y = 0;
     if (out.lengthSq() < 1e-4) out.set(rand() - .5, 0, rand() - .5);
     out.normalize().multiplyScalar((9 + rand() * 14) * k).setY((8 + rand() * 12) * k);
-    wrecks.push({ pivot, v: out, w: V(rand() - .5, rand() - .5, rand() - .5).multiplyScalar(10 * (k + .15)), size, wet: false, done: false, smoke: 0 });
+    wrecks.push({ rec, pivot, v: out, w: V(rand() - .5, rand() - .5, rand() - .5).multiplyScalar(10 * (k + .15)), size, wet: false, done: false, smoke: 0 });
   }
   function updateWrecks(dt){
     for (const w of wrecks){
@@ -1339,6 +1345,26 @@ export function create(container){
       while (b.sacc > .16){ b.sacc -= .16; jit.copy(b.pos).y += 2.5; emit(smokePool, jit, .8 + rand() * .6, 2.4 + rand(), (rand() - .5) * .6, 5, 2.5, 15, { op: .5 }); }
       if (b.light){ b.light.position.copy(b.pos).y += 2; b.light.intensity = 260 + 120 * Math.sin(now * 17 + b.seed) + 80 * Math.sin(now * 29 + b.seed * 2); }
     }
+  }
+  // alarm over: meteors gone, fires out, every piece back where it was, scorch marks cleaned
+  function repairAll(){
+    for (const m of meteors3){ scene.remove(m.grp); m.light.intensity = 0; }
+    meteors3.length = 0;
+    for (const w of wrecks){
+      const r = w.rec;
+      r.parent.add(r.o); r.o.position.copy(r.pos); r.o.quaternion.copy(r.quat); r.o.scale.copy(r.scl);
+      r.lights.forEach(([l, i]) => { l.intensity = i; });
+      r.o.userData.broken = false;
+      if (r.car) r.b.cars.push(r.o);
+      scene.remove(w.pivot);
+    }
+    wrecks.length = 0;
+    for (const o of charred){ o.userData.charred = false; o.traverse(m => { if (m.userData.origMat){ m.material = m.userData.origMat; delete m.userData.origMat; } }); }
+    charred.length = 0;
+    for (const bn of burners) if (bn.light) bn.light.intensity = 0;
+    burners.length = 0;
+    for (const sp of flamePool.concat(smokePool)) sp.visible = false;
+    for (const b of bridges){ b.broken = false; if (b.decks0) b.decks = b.decks0; }
   }
   function updateAlarm(dt, now){
     if (alarmK < 1){ alarmK = Math.min(1, alarmK + dt / 3); applyLook(alarmK); }
@@ -1495,6 +1521,7 @@ export function create(container){
     for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, realDt); updateStunt(b, realDt, now); }
     updateBoats(dt, now); updateExplosions(dt);
     if (alarm) updateAlarm(dt, now);
+    else if (alarmK > 0){ alarmK = Math.max(0, alarmK - dt / 3); applyLook(alarmK); }     // sky fades back to night
     camera.position.y = camY;
     if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y += (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
     composer.render();
@@ -1511,12 +1538,16 @@ export function create(container){
 
   return {
     setActive(on){ active = on; if (on) resize(); sync(); },
-    // alarm mode (stays on until the page reloads): red sky, a meteor shower, the bridges wrecked
-    setAlarm(){
-      if (alarm) return;
-      alarm = true; captureLook(); makePools();
-      for (const b of bridges) collectPieces(b);
-      nextMeteor = clockA + .6;
+    // alarm mode: red sky, a meteor shower, the bridges wrecked; switching it off repairs everything
+    setAlarm(on = true){
+      if (on === alarm) return;
+      alarm = on;
+      if (on){
+        if (!look0) captureLook();
+        if (!flamePool.length) makePools();
+        for (const b of bridges) collectPieces(b);
+        nextMeteor = clockA + .6;
+      } else repairAll();
     },
     _alarm(){
       return { k: +alarmK.toFixed(2), meteors: meteors3.length, wrecks: wrecks.length, burners: burners.length, explosions: explosionCount,

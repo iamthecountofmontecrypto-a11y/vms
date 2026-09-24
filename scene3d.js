@@ -95,7 +95,7 @@ function waterGrid(){
   g.computeBoundingSphere(); g.boundingSphere.radius += 2;
   return g;
 }
-const MAX_OB = 24, MAX_BOATS = 12, MAX_RIPPLES = 4;
+const MAX_OB = 24, MAX_BOATS = 16, MAX_RIPPLES = 4;
 const WATER_VS = /* glsl */`
 uniform float time;
 varying vec3 vWorld;
@@ -936,6 +936,10 @@ export function create(container){
       wu.boatB.value[n].set(m.dims.len / 2 * sc, m.dims.beam / 2 * sc, moving ? u.speed : 0, 0);
       n++;
     }
+    for (const c of eventCraft){                                   // creatures and craft from the random events
+      if (n >= MAX_BOATS) break;
+      wu.boatA.value[n].set(c.pos.x, c.pos.z, c.fwd.x, c.fwd.z); wu.boatB.value[n].set(c.len / 2, c.beam / 2, c.speed, 0); n++;
+    }
     wu.boatN.value = n;
   }
   function updateBoats(dt, t){
@@ -1490,6 +1494,520 @@ export function create(container){
     b.warns.forEach((w, i) => { w.material.emissive.setHex(flashing ? ((i % 2 === 0) === on ? 0xff2d40 : 0x3a1016) : 0x3a1016); w.material.emissiveIntensity = flashing ? 6 : 1; });
   }
 
+  // ------------------------------------------------------------ random events: silly NPCs and creatures
+  // Every few seconds something unexpected happens in the harbour: someone jumps off a bridge (and
+  // may get chased by a shark), dolphins, a UFO abducting a car or a cow, fireworks, a kraken, a
+  // giant duck, a jet ski, a whale, a balloon, Nessie, a helicopter with a searchlight. Each event
+  // is { kind, update(dt) -> false when finished, dispose() }.
+  const Rn = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const eventCraft = new Set();                 // extra hulls for the water shader's foam and wakes
+  const activeEvents = [];
+  let eventClock = 0, nextEventAt = 4, autoEvents = true;
+  const SPRAY = [.86, .9, .95];
+  const surf = (x, z) => waveHeight(x, z, waterTime);
+  const yawOf = (dx, dz) => Math.atan2(-dz, dx);                 // rotation.y that points local +x along (dx, dz)
+  const sph = new THREE.SphereGeometry(1, 16, 12); sph.userData.keep = true;
+  function splashAt(p, size = 1){
+    addRipple(p.x, p.z, Math.min(2.2, .4 + size * .5));
+    const n = Math.round(6 + size * 7);
+    for (let i = 0; i < n; i++) emit(smokePool, p, Rn(-1.6, 1.6) * size, Rn(2, 6.5) * size, Rn(-1.6, 1.6) * size, Rn(.7, 1.3), .5 * size, 2.4 * size, { op: .75, col: SPRAY });
+  }
+  function disposeTree(o){
+    o.traverse(c => {
+      if (c.geometry && !c.geometry.userData.keep) c.geometry.dispose();
+      const ms = c.material ? (Array.isArray(c.material) ? c.material : [c.material]) : [];
+      ms.forEach(m => { if (!m.userData.keep) m.dispose(); });
+    });
+  }
+  const ball = (r, mat, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(sph, mat); m.position.set(x, y, z); m.scale.set(r * sx, r * sy, r * sz); return m; };
+  function tri(pts, mat, depth = .12){
+    const sh = new THREE.Shape(); sh.moveTo(pts[0][0], pts[0][1]); pts.slice(1).forEach(p => sh.lineTo(p[0], p[1])); sh.closePath();
+    const geo = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }); geo.translate(0, 0, -depth / 2);
+    return new THREE.Mesh(geo, mat);
+  }
+
+  // ---- people
+  function makePerson(){
+    const g = new THREE.Group();
+    const cloth = std(pick([0xff4d6d, 0x3fa7ff, 0xffd23f, 0x7cff6b, 0xff8a3d, 0xc77dff, 0xf4f6fa]), { roughness: .6 });
+    const pants = std(pick([0x243049, 0x3b2f2f, 0x1f5f8b, 0x222222])), skin = std(pick([0xf1c7a3, 0xd6a07a, 0x8d5a3b]), { roughness: .8 });
+    const limb = (w, h, mat, y, z) => { const p = new THREE.Group(); p.position.set(0, y, z); p.add(box(w, h, w, mat, 0, -h / 2, 0)); g.add(p); return p; };
+    const legL = limb(.18, .82, pants, .82, .12), legR = limb(.18, .82, pants, .82, -.12);
+    const armL = limb(.13, .66, cloth, 1.42, .33), armR = limb(.13, .66, cloth, 1.42, -.33);
+    g.add(box(.3, .66, .52, cloth, 0, 1.14, 0));
+    g.add(ball(.17, skin, 0, 1.64, 0));
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), std(pick([0x2b1d14, 0xe8c36a, 0x9a3b1f, 0x111111])));
+    hair.position.y = 1.66; g.add(hair);
+    g.scale.setScalar(1.7);
+    g.userData.limbs = { legL, legR, armL, armR };
+    return g;
+  }
+  function pose(p, legA, legB, armA, armB){ const l = p.userData.limbs; l.legL.rotation.z = legA; l.legR.rotation.z = legB; l.armL.rotation.z = armA; l.armR.rotation.z = armB; }
+  const walkPose = (p, ph, amp = .6) => pose(p, Math.sin(ph) * amp, -Math.sin(ph) * amp, -Math.sin(ph) * amp * .8, Math.sin(ph) * amp * .8);
+
+  function evJumper(){
+    const b = pick(bridges.filter(x => !x.broken));
+    if (!b) return null;
+    b.group.updateMatrixWorld();
+    const q = new THREE.Quaternion(); b.group.getWorldQuaternion(q);
+    const outW = V(0, 0, 1).applyQuaternion(q); const side = outW.z > 0 ? 1 : -1;     // the edge that faces the camera
+    outW.multiplyScalar(side).setY(0).normalize();
+    const s = Math.random() < .5 ? 1 : -1, x1 = s * (b.hinge + Rn(12, 20)), z = side * (b.W / 2 - .8);
+    const holder = new THREE.Group(), p = makePerson(); holder.add(p); scene.add(holder);
+    const gy = b.group.rotation.y, face0 = gy + (s > 0 ? Math.PI : 0), face1 = gy + (side > 0 ? -Math.PI / 2 : Math.PI / 2);
+    const style = pick(["flip", "cannonball", "bellyflop", "dive", "pirouette"]);
+    const place = (lx, ly, lz) => holder.position.copy(b.group.localToWorld(V(lx, ly, lz)));
+    let phase = "walk", t = 0, x = s * (b.hinge + 26), swimT = 0, panic = false;
+    const vel = V(0, 0, 0), swimDir = V(0, 0, 0), craft = { pos: holder.position, fwd: swimDir, len: 2.6, beam: 1, speed: 0 };
+    place(x, b.deck, z); holder.rotation.y = face0;
+    const ev = { kind: "jumper", obj: holder, escaped: false,
+      alive: () => phase === "swim", swimDir, setPanic(){ panic = true; },
+      update(dt){
+        t += dt;
+        if (b.broken && (phase === "walk" || phase === "turn" || phase === "climb" || phase === "pose")) return false;
+        if (phase === "walk"){
+          x -= s * 2.2 * dt; walkPose(p, t * 9); place(x, b.deck, z);
+          if (s * (x - x1) <= 0){ phase = "turn"; t = 0; }
+        } else if (phase === "turn"){
+          const u = Math.min(1, t / .5); let d = face1 - face0; d = Math.atan2(Math.sin(d), Math.cos(d));
+          holder.rotation.y = face0 + d * u; walkPose(p, t * 7, .3 * (1 - u));
+          if (u >= 1){ phase = "climb"; t = 0; }
+        } else if (phase === "climb"){
+          const u = Math.min(1, t / .6); place(x, b.deck + 1.25 * Math.sin(u * Math.PI / 2), z + side * .5 * u); pose(p, -.4 * Math.sin(u * Math.PI), 0, u * 2.6, u * 2.6);
+          if (u >= 1){ phase = "pose"; t = 0; }
+        } else if (phase === "pose"){
+          pose(p, .1, -.1, Math.PI + Math.sin(t * 12) * .45, Math.PI - Math.sin(t * 12) * .45);
+          if (t > 1.1){ phase = "air"; t = 0; vel.copy(outW).multiplyScalar(Rn(3, 5)).setY(Rn(5, 7)); }
+        } else if (phase === "air"){
+          vel.y -= 9.81 * dt; holder.position.addScaledVector(vel, dt);
+          if (style === "flip"){ p.rotation.z = -t * 8; pose(p, 1.8, 1.8, 1.2, 1.2); }
+          else if (style === "cannonball"){ p.rotation.z = -t * 3; pose(p, 2.2, 2, 1.5, 1.3); }
+          else if (style === "bellyflop"){ p.rotation.z = -Math.min(1, t * 1.6) * Math.PI / 2; pose(p, .2, -.2, 1.6, 1.6); }
+          else if (style === "dive"){ p.rotation.z = -Math.min(1, t * 1.2) * Math.PI * .95; pose(p, 0, 0, Math.PI, Math.PI); }
+          else { holder.rotation.y += dt * 14; pose(p, .5, -.5, 1.6, -1.6); }
+          if (vel.y < 0 && holder.position.y <= surf(holder.position.x, holder.position.z)){
+            splashAt(holder.position, style === "bellyflop" || style === "cannonball" ? 2.2 : 1.2);
+            phase = "swim"; t = 0;
+            swimDir.copy(outW).applyAxisAngle(UP, Rn(-.8, .8));
+            holder.rotation.y = yawOf(swimDir.x, swimDir.z); p.rotation.set(0, 0, -Math.PI / 2);
+            eventCraft.add(craft);
+            if (Math.random() < .5){ const sh = evShark(ev); if (sh) activeEvents.push(sh); }
+          }
+        } else if (phase === "swim"){
+          const sp = panic ? 3.6 : 1.6; swimT += dt;
+          holder.position.addScaledVector(swimDir, sp * dt); holder.position.y = surf(holder.position.x, holder.position.z) - .3;
+          const w = t * (panic ? 13 : 7); pose(p, Math.sin(t * 16) * .35, -Math.sin(t * 16) * .35, w, w + Math.PI);
+          craft.speed = sp;
+          if (swimT > 14 || (ev.escaped && swimT > 7)){ phase = "under"; t = 0; eventCraft.delete(craft); }
+        } else if (phase === "under"){ holder.position.y -= 1.2 * dt; if (t > 1.6) return false; }
+        return true;
+      },
+      dispose(){ scene.remove(holder); disposeTree(holder); eventCraft.delete(craft); } };
+    return ev;
+  }
+
+  // ---- sharks (cruising and breaching, or chasing a swimmer and just missing)
+  function makeShark(){
+    const g = new THREE.Group(), skin = std(0x5f6f80, { roughness: .45 }), belly = std(0xdfe5ea, { roughness: .6 });
+    g.add(ball(1, skin, 0, 0, 0, 2.6, .75, .8), ball(1, belly, .2, -.25, 0, 2.3, .5, .7));
+    g.add(tri([[-.6, .5], [.4, .5], [-.5, 1.9]], skin));
+    const tail = new THREE.Group(); tail.position.x = -2.4; g.add(tail);
+    tail.add(tri([[0, 0], [-1.3, 1.3], [-.9, 0], [-1.1, -.9]], skin));
+    for (const zz of [.5, -.5]){ const f = tri([[.6, -.3], [1.4, -.3], [.2, -1.1]], skin); f.rotation.x = zz > 0 ? -.6 : .6; f.position.z = zz; g.add(f); }
+    const eye = std(0x080808, { roughness: .2 });
+    for (const zz of [.42, -.42]) g.add(ball(.09, eye, 1.95, .12, zz));
+    g.add(box(.5, .08, .5, std(0x5a0f18), 2.15, -.3, 0));
+    g.scale.setScalar(1.7); g.userData.tail = tail;
+    return g;
+  }
+  function evShark(target = null){
+    const g = makeShark(); scene.add(g);
+    const pos = V(0, 0, 0), fwd = V(1, 0, 0), craft = { pos, fwd, len: 6, beam: 1.6, speed: 3 }; eventCraft.add(craft);
+    let t = 0, mode = target ? "chase" : "cruise", bt = 0, ang = Rn(0, 6.28), bFrom = null, bDir = null;
+    const c = V(Rn(-55, 55), 0, Rn(-15, 35)), r = Rn(7, 13), dirA = Math.random() < .5 ? 1 : -1, breachAt = Rn(5, 9);
+    if (target){ pos.copy(target.obj.position).addScaledVector(target.swimDir, -18); pos.y = 0; target.setPanic(); }
+    else pos.set(c.x + Math.cos(ang) * r, 0, c.z + Math.sin(ang) * r);
+    const startBreach = () => { mode = "breach"; bt = 0; bFrom = pos.clone(); bDir = fwd.clone(); craft.speed = 0; splashAt(V(pos.x, 0, pos.z), 1.4); if (target) target.escaped = true; };
+    return { kind: "shark", obj: g,
+      update(dt){
+        t += dt;
+        if (mode === "cruise"){
+          ang += dirA * dt * 5 / r;
+          const nx = c.x + Math.cos(ang) * r, nz = c.z + Math.sin(ang) * r;
+          fwd.set(nx - pos.x, 0, nz - pos.z).normalize(); pos.set(nx, 0, nz);
+          if (t > breachAt) startBreach();
+        } else if (mode === "chase"){
+          const tp = target.obj.position, d = V(tp.x - pos.x, 0, tp.z - pos.z), dist = d.length();
+          fwd.copy(d.normalize()); pos.addScaledVector(fwd, Math.min(dist, 5 * dt));
+          if ((dist < 4 && t > 3) || t > 10 || !target.alive()) startBreach();
+        } else if (mode === "breach"){
+          bt += dt; const u = Math.min(1, bt / 1.5);
+          pos.copy(bFrom).addScaledVector(bDir, u * 10);
+          g.position.set(pos.x, Math.sin(u * Math.PI) * 5.5 - .6, pos.z);
+          g.rotation.set(0, yawOf(bDir.x, bDir.z), Math.cos(u * Math.PI) * 1.1);
+          g.userData.tail.rotation.y = Math.sin(t * 20) * .4;
+          if (u >= 1){ splashAt(V(pos.x, 0, pos.z), 2); mode = "sink"; t = 0; }
+          return true;
+        } else if (mode === "sink"){ g.position.y -= 1.5 * dt; return t < 2; }
+        g.position.set(pos.x, surf(pos.x, pos.z) - 1.1, pos.z);
+        g.rotation.set(Math.sin(t * 3) * .05, yawOf(fwd.x, fwd.z), 0);
+        g.userData.tail.rotation.y = Math.sin(t * 7) * .35;
+        return true;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- dolphins
+  function makeDolphin(){
+    const g = new THREE.Group(), skin = std(0x6f8fb0, { roughness: .35 }), belly = std(0xdbe7f5, { roughness: .5 });
+    g.add(ball(1, skin, 0, 0, 0, 1.9, .55, .55), ball(1, belly, .2, -.18, 0, 1.6, .38, .45));
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(.2, .7, 10), skin); beak.rotation.z = -Math.PI / 2; beak.position.x = 2.05; g.add(beak);
+    g.add(tri([[-.4, .4], [.3, .4], [-.5, 1.1]], skin));
+    const fl = tri([[0, 0], [-.7, .8], [-.4, 0], [-.7, -.8]], skin); fl.rotation.x = Math.PI / 2; fl.position.x = -1.8; g.add(fl);
+    for (const zz of [.33, -.33]) g.add(ball(.06, std(0x080808), 1.5, .12, zz));
+    g.scale.setScalar(1.5);
+    return g;
+  }
+  function evDolphins(){
+    const n = 3 + Math.floor(Rn(0, 3)), dir = pick([-1, 1]), z0 = Rn(10, 38), items = [];
+    for (let i = 0; i < n; i++){ const d = makeDolphin(); scene.add(d); items.push({ d, off: i * Rn(4, 6), z: z0 + Rn(-3, 3), ph: -i * .7, prev: 0, craft: { pos: V(0, 0, 0), fwd: V(dir, 0, 0), len: 3.5, beam: .8, speed: 2.5 } }); }
+    items.forEach(it => eventCraft.add(it.craft));
+    let t = 0;
+    return { kind: "dolphins",
+      update(dt){
+        t += dt; let any = false;
+        for (const it of items){
+          const x = dir * (-130 + 11 * t) - dir * it.off, ph = t * 2.3 + it.ph, s = Math.sin(ph);
+          const y = s > 0 ? s * 2.8 - .5 : s * .8 - .5;
+          it.d.position.set(x, y, it.z);
+          it.d.rotation.set(0, dir > 0 ? 0 : Math.PI, Math.cos(ph) * (s > 0 ? .9 : .3));
+          if (ph > 0 && Math.sign(s) !== it.prev){ splashAt(V(x, 0, it.z), .8); it.prev = Math.sign(s); }
+          it.craft.pos.set(x, 0, it.z);
+          if (Math.abs(x) < 140) any = true;
+        }
+        return any || t < 2;
+      },
+      dispose(){ items.forEach(it => { scene.remove(it.d); disposeTree(it.d); eventCraft.delete(it.craft); }); } };
+  }
+
+  // ---- UFO abducting a car (it comes back later) or a cow from the quay
+  function makeCow(){
+    const g = new THREE.Group(), white = std(0xf6f6f2, { roughness: .8 }), black = std(0x151515, { roughness: .8 });
+    g.add(box(1.8, .9, .8, white, 0, 1.1, 0));
+    g.add(box(.6, .5, .5, black, -.3, 1.35, .2), box(.4, .4, .4, black, .45, 1.2, -.25));
+    for (const [lx, lz] of [[-.7, .3], [-.7, -.3], [.7, .3], [.7, -.3]]) g.add(box(.2, .7, .2, white, lx, .35, lz));
+    g.add(box(.55, .5, .45, white, 1.1, 1.5, 0), box(.2, .22, .4, std(0xf7a8b8), 1.4, 1.38, 0));
+    g.add(box(.08, .25, .08, std(0xe8e0c8), 1.05, 1.85, .16), box(.08, .25, .08, std(0xe8e0c8), 1.05, 1.85, -.16));
+    g.scale.setScalar(1.6);
+    return g;
+  }
+  const beamMat = new THREE.MeshBasicMaterial({ color: 0x7dffb0, transparent: true, opacity: .28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  beamMat.userData.keep = true;
+  function evUFO(){
+    const g = new THREE.Group(), metal = std(0xb8c2d0, { metalness: .9, roughness: .25 });
+    g.add(ball(1, metal, 0, 0, 0, 6, 1.1, 6));
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(2.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x7fffd4, emissive: 0x2a8f7a, emissiveIntensity: 1.2, transparent: true, opacity: .75, roughness: .1 }));
+    dome.position.y = .6; g.add(dome);
+    const ring = new THREE.Group(); g.add(ring);
+    const lights = [];
+    for (let i = 0; i < 12; i++){ const a = i / 12 * Math.PI * 2, m = glow(0xffffff, 5); lights.push(m); ring.add(ball(.3, m, Math.cos(a) * 5.6, -.2, Math.sin(a) * 5.6)); }
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 4.5, 1, 24, 1, true), beamMat); beam.geometry.translate(0, -.5, 0); beam.visible = false; g.add(beam);
+    scene.add(g);
+    // the target
+    let target, targetY0, restore;
+    const cand = bridges.filter(b => !b.broken && b.cars.length > 2);
+    if (cand.length && Math.random() < .6){
+      const b = pick(cand), car = pick(b.cars);
+      b.cars.splice(b.cars.indexOf(car), 1); scene.attach(car); target = car;
+      restore = () => { const u = car.userData; b.group.add(car); u.x = u.dir > 0 ? -62 : 62; car.position.set(u.x, b.deck, b.lanes[u.lane]); car.rotation.set(0, u.lane === 0 ? 0 : Math.PI, 0); car.scale.set(1, 1, 1); car.visible = true; b.cars.push(car); };
+    } else {
+      const b = pick(bridges), cow = makeCow(), qx = b === twin ? 44 : 58;
+      cow.position.copy(b.group.localToWorld(V(-qx + Rn(-3, 3), b.deck, Rn(4, 9)))); cow.rotation.y = Rn(0, 6.28); scene.add(cow); target = cow;
+      restore = () => { scene.remove(cow); disposeTree(cow); };
+    }
+    targetY0 = target.position.y;
+    const tp = target.position.clone(), hover = tp.clone().setY(tp.y + 24), from = V(pick([-1, 1]) * 260, 150, -260), exitDir = V(pick([-1, 1]) * 1, .5, -.6).normalize();
+    let t = 0, phase = "arrive"; const vel = V(0, 0, 0);
+    g.position.copy(from);
+    return { kind: "ufo",
+      update(dt){
+        t += dt; ring.rotation.y += dt * 3;
+        lights.forEach((m, i) => m.emissive.setHSL((t * .5 + i / 12) % 1, 1, .55));
+        if (phase === "arrive"){
+          const u = Math.min(1, t / 3), e = 1 - Math.pow(1 - u, 3);
+          g.position.lerpVectors(from, hover, e); g.position.y += Math.sin(t * 4) * .4; g.rotation.z = Math.sin(t * 3) * .1 * (1 - u);
+          if (u >= 1){ phase = "beam"; t = 0; beam.visible = true; }
+        } else if (phase === "beam"){
+          const u = Math.min(1, t / 3.2);
+          g.position.y = hover.y + Math.sin(t * 4) * .3;
+          beam.scale.set(1, g.position.y - targetY0 + .5, 1);
+          target.position.y = targetY0 + (g.position.y - 1.5 - targetY0) * u * u;
+          target.rotation.y += dt * 3; target.scale.setScalar((target.userData.dir !== undefined ? 1 : 1.6) * (1 - u * .85));
+          if (u >= 1){ phase = "wobble"; t = 0; beam.visible = false; target.visible = false; }
+        } else if (phase === "wobble"){
+          g.rotation.z = Math.sin(t * 25) * .15;
+          if (t > .7){ phase = "zip"; t = 0; g.rotation.z = 0; }
+        } else {
+          vel.addScaledVector(exitDir, 260 * dt); g.position.addScaledVector(vel, dt);
+          if (t > 2.2) return false;
+        }
+        return true;
+      },
+      dispose(){ restore(); scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- fireworks over the town
+  function evFireworks(){
+    const rockets = [], bursts = [];
+    const n = 6 + Math.floor(Rn(0, 5));
+    for (let i = 0; i < n; i++) rockets.push({ at: Rn(0, 5), pos: V(Rn(-110, 110), 2, Rn(-130, -100)), vy: Rn(26, 32), top: Rn(20, 32), fired: false, done: false, acc: 0 });
+    const PAL = [[3, .5, .7], [3, 2.6, .6], [.8, 2, 3.2], [1, 3, 1.2], [2.4, 1, 3.2], [3.2, 1.5, .4]];
+    let t = 0;
+    return { kind: "fireworks",
+      update(dt){
+        t += dt;
+        for (const r of rockets){
+          if (r.done || t < r.at) continue;
+          r.fired = true; r.pos.y += r.vy * dt; r.acc += dt;
+          while (r.acc > .025){ r.acc -= .025; emit(flamePool, r.pos, Rn(-.5, .5), -2, Rn(-.5, .5), .4, 1.6, .4); }
+          if (r.pos.y >= r.top){
+            r.done = true;
+            const m = 140, pos = new Float32Array(m * 3), col = new Float32Array(m * 3), vel = [], c = pick(PAL), c2 = pick(PAL);
+            for (let i = 0; i < m; i++){
+              const v = V(Rn(-1, 1), Rn(-1, 1), Rn(-1, 1)).normalize().multiplyScalar(Rn(10, 15)); vel.push(v);
+              pos.set([r.pos.x, r.pos.y, r.pos.z], i * 3); const cc = i % 3 ? c : c2; col.set(cc, i * 3);
+            }
+            const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+            const mat = new THREE.PointsMaterial({ size: 4.5, map: fireTex, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+            const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; scene.add(pts);
+            bursts.push({ pts, vel, t: 0 });
+          }
+        }
+        for (const b of bursts){
+          b.t += dt; const a = b.pts.geometry.attributes.position;
+          for (let i = 0; i < b.vel.length; i++){ const v = b.vel[i]; v.y -= 7 * dt; v.multiplyScalar(1 - dt * 1.1); a.setXYZ(i, a.getX(i) + v.x * dt, a.getY(i) + v.y * dt, a.getZ(i) + v.z * dt); }
+          a.needsUpdate = true; b.pts.material.opacity = Math.max(0, 1 - b.t / 2.6) * (.8 + Math.random() * .2);
+        }
+        return t < 9;
+      },
+      dispose(){ bursts.forEach(b => { scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); }); } };
+  }
+
+  // ---- kraken
+  function evKraken(){
+    const c = V(Rn(-60, 60), 0, Rn(-10, 32)), g = new THREE.Group(); scene.add(g);
+    const skin = std(0x8a2b5e, { roughness: .5 }), eyeM = glow(0xffe14a, 4);
+    const tentacles = [];
+    for (let j = 0; j < 6; j++){
+      const a = j / 6 * Math.PI * 2 + Rn(-.2, .2), base = V(c.x + Math.cos(a) * Rn(3.5, 6), 0, c.z + Math.sin(a) * Rn(3.5, 6)), segs = [];
+      for (let i = 0; i < 12; i++){ const m = new THREE.Mesh(sph, skin); g.add(m); segs.push(m); }
+      tentacles.push({ a, base, segs, h: Rn(7, 11), ph: Rn(0, 6) });
+    }
+    const head = ball(1, skin, c.x, -4, c.z, 3.4, 2.6, 3.4); g.add(head);
+    const eyes = [-1, 1].map(sx => { const e = ball(.5, eyeM, 0, 0, 0); g.add(e); return { e, sx }; });
+    let t = 0, slapped = false;
+    splashAt(c, 2);
+    return { kind: "kraken",
+      update(dt){
+        t += dt;
+        const rise = t < 1.6 ? t / 1.6 : t > 7.5 ? Math.max(0, 1 - (t - 7.5) / 1.6) : 1;
+        tentacles.forEach((tn, j) => {
+          const out = V(Math.cos(tn.a), 0, Math.sin(tn.a)), side = V(-out.z, 0, out.x);
+          let h = tn.h * rise;
+          if (j === 0 && t > 4 && t < 4.8){ h *= 1 - Math.sin((t - 4) / .8 * Math.PI) * .8; if (!slapped && t > 4.4){ slapped = true; splashAt(tn.base.clone().addScaledVector(out, 6), 2.5); } }
+          tn.segs.forEach((m, i) => {
+            const u = i / 11, sway = Math.sin(t * 2.4 + tn.ph + u * 3.2) * u * 2.2;
+            m.position.copy(tn.base).addScaledVector(out, u * u * 3.5).addScaledVector(side, sway); m.position.y = -1 + u * h;
+            m.scale.setScalar(Math.max(.05, (.75 - .6 * u) * (rise > 0 ? 1 : 0)));
+          });
+        });
+        head.position.y = -4 + rise * 2.6;
+        eyes.forEach(({ e, sx }) => { e.position.set(c.x + sx * 1.3, head.position.y + 1.4, c.z + 3); e.visible = rise > .5; });
+        if (t > 9.2) return false;
+        return true;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- giant rubber duck
+  function evDuck(){
+    const g = new THREE.Group(), yellow = std(0xffd23f, { roughness: .35 });
+    g.add(ball(.6, yellow, 0, .1, 0, 1.3, .8, 1), ball(.38, yellow, .5, .72, 0));
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(.13, .38, 12), std(0xff7a3c)); beak.rotation.z = -Math.PI / 2; beak.position.set(.95, .66, 0); g.add(beak);
+    for (const zz of [.17, -.17]) g.add(ball(.055, std(0x111111), .8, .82, zz));
+    const tailT = new THREE.Mesh(new THREE.ConeGeometry(.2, .45, 10), yellow); tailT.rotation.z = Math.PI / 2 + .6; tailT.position.set(-.8, .35, 0); g.add(tailT);
+    g.scale.setScalar(7); scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(2, 26), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 9, beam: 5, speed: 1.5 }; eventCraft.add(craft);
+    let t = 0;
+    return { kind: "duck",
+      update(dt){
+        t += dt; const x = dir * (-120 + 4.5 * t);
+        g.position.set(x, surf(x, z) - 1.4, z); g.rotation.set(Math.sin(t * .9) * .05, dir > 0 ? 0 : Math.PI, Math.sin(t * 1.3) * .06);
+        craft.pos.set(x, 0, z);
+        return Math.abs(x) < 125;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- jet ski doing figure-eights
+  function evJetski(){
+    const g = new THREE.Group(), hull = std(pick([0xff3b50, 0x19c3ff, 0xffd23f]), { roughness: .3, metalness: .2 });
+    g.add(box(2.6, .45, 1, hull, 0, .2, 0), box(.9, .35, .8, std(0x151515), -.2, .55, 0));
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(.5, 1, 4), hull); nose.rotation.z = -Math.PI / 2; nose.rotation.x = Math.PI / 4; nose.position.set(1.7, .25, 0); g.add(nose);
+    const rider = makePerson(); rider.scale.setScalar(1.3); rider.position.set(-.3, .5, 0); pose(rider, 1.3, 1.3, 1.3, 1.3); g.add(rider);
+    scene.add(g);
+    const c = V(Rn(-45, 45), 0, Rn(0, 30)), A = Rn(10, 16), pos = V(0, 0, 0), fwd = V(1, 0, 0), craft = { pos, fwd, len: 3, beam: 1.2, speed: 13 }; eventCraft.add(craft);
+    let t = 0, acc = 0, lastYaw = null; const exitV = V(0, 0, 0);
+    return { kind: "jetski",
+      update(dt){
+        t += dt;
+        if (t < 16){
+          const th = t * .9, d = 1 + Math.sin(th) ** 2, nx = c.x + A * Math.cos(th) / d, nz = c.z + A * Math.sin(th) * Math.cos(th) / d;
+          fwd.set(nx - pos.x, 0, nz - pos.z); if (fwd.lengthSq() > 1e-6) fwd.normalize(); pos.set(nx, 0, nz);
+          if (t > 15.9) exitV.copy(fwd);
+        } else { pos.addScaledVector(exitV, (13 + (t - 16) * 10) * dt); if (t > 20) return false; }
+        const yaw = yawOf(fwd.x, fwd.z); let turn = 0;
+        if (lastYaw !== null){ let d = yaw - lastYaw; d = Math.atan2(Math.sin(d), Math.cos(d)); turn = d / Math.max(dt, 1e-3); }
+        lastYaw = yaw;
+        g.position.set(pos.x, surf(pos.x, pos.z) - .1, pos.z); g.rotation.set(clamp(-turn * .25, -.5, .5), yaw, .12);
+        acc += dt; while (acc > .03){ acc -= .03; emit(smokePool, V(pos.x - fwd.x * 1.6, .3, pos.z - fwd.z * 1.6), -fwd.x * 3 + Rn(-1, 1), Rn(1.5, 3.5), -fwd.z * 3 + Rn(-1, 1), .8, .5, 2.2, { op: .6, col: SPRAY }); }
+        return true;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- whale surfacing, spouting and diving
+  function evWhale(){
+    const g = new THREE.Group(), skin = std(0x33414f, { roughness: .6 }), belly = std(0xb9c2cc, { roughness: .7 });
+    g.add(ball(1, skin, 0, 0, 0, 8, 2, 2.6), ball(1, belly, 1, -.8, 0, 6.5, 1.1, 2.1));
+    const fluke = new THREE.Group(); fluke.position.x = -7.6; g.add(fluke);
+    const ft = tri([[0, 0], [-2.6, 2.8], [-1.6, 0], [-2.6, -2.8]], skin, .3); ft.rotation.x = Math.PI / 2; fluke.add(ft);
+    scene.add(g);
+    const dir = pick([-1, 1]), base = V(Rn(-50, 50), 0, Rn(-30, -5)); let t = 0, acc = 0;
+    return { kind: "whale",
+      update(dt){
+        t += dt;
+        const surfaceU = t < 2 ? t / 2 : 1, x = base.x + dir * t * 1.2;
+        if (t < 4.2){ g.position.set(x, -4 + surfaceU * 3.1, base.z); g.rotation.set(0, dir > 0 ? 0 : Math.PI, 0); }
+        else { const u = Math.min(1, (t - 4.2) / 3); g.rotation.set(0, dir > 0 ? 0 : Math.PI, -u * 1.2); g.position.y = -.9 - u * 5; }
+        fluke.rotation.z = t > 4.2 ? Math.sin((t - 4.2) * 1.5) * .6 : Math.sin(t * 1.4) * .15;
+        if (t > 2 && t < 4){ acc += dt; const head = V(x + dir * 5, .8, base.z); while (acc > .025){ acc -= .025; emit(smokePool, head, Rn(-.8, .8), Rn(10, 14), Rn(-.8, .8), 1.4, .8, 3.6, { op: .8, col: SPRAY }); } }
+        if (t > 6.6 && !this.sp){ this.sp = true; splashAt(V(x - dir * 7, 0, base.z), 2.5); }
+        return t < 8.5;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- hot air balloon drifting over
+  function evBalloon(){
+    const g = new THREE.Group();
+    const tex = canvasTex(256, 64, (c2, w, h) => { const cols = ["#ff4d6d", "#ffd23f", "#3fa7ff", "#7cff6b", "#c77dff", "#ff8a3d"]; for (let i = 0; i < 12; i++){ c2.fillStyle = cols[i % cols.length]; c2.fillRect(i * w / 12, 0, w / 12 + 1, h); } });
+    const env = new THREE.Mesh(new THREE.SphereGeometry(6, 24, 16), new THREE.MeshStandardMaterial({ map: tex, roughness: .7, emissive: 0x221108 })); env.scale.y = 1.2; g.add(env);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 1, 3, 16, 1, true), new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: .7 })); neck.position.y = -7.4; g.add(neck);
+    g.add(box(2, 1.3, 2, std(0x8a5a2b, { roughness: .9 }), 0, -11, 0));
+    for (const [x, z] of [[-.9, -.9], [.9, -.9], [-.9, .9], [.9, .9]]) g.add(box(.06, 2.6, .06, std(0x3b2a1a), x, -9.4, z));
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    flame.material.color.setRGB(3, 2, 1); flame.position.y = -8.6; flame.scale.setScalar(2.5); g.add(flame);
+    const pilot = makePerson(); pilot.scale.setScalar(.9); pilot.position.set(0, -11.6, .3); g.add(pilot);
+    scene.add(g);
+    const dir = pick([-1, 1]), y = Rn(38, 55), z = Rn(-110, -55); let t = 0;
+    return { kind: "balloon",
+      update(dt){
+        t += dt; g.position.set(dir * (-190 + 7 * t), y + Math.sin(t * .6) * 2, z);
+        flame.visible = Math.sin(t * 1.7) > .5; flame.scale.setScalar(2 + Math.random());
+        pose(pilot, 0, 0, Math.PI + Math.sin(t * 8) * .4, .2);
+        return t < 380 / 7;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); } };
+  }
+
+  // ---- Nessie
+  function evNessie(){
+    const g = new THREE.Group(), skin = std(0x3f7a4a, { roughness: .5 });
+    const humps = [0, 1, 2].map(i => { const m = ball(1, skin, -4 - i * 4.2, 0, 0, 2, 1.3, 1.5); g.add(m); return m; });
+    const neck = []; for (let i = 0; i < 9; i++){ const m = new THREE.Mesh(sph, skin); g.add(m); neck.push(m); }
+    const head = ball(1, skin, 0, 0, 0, 1.2, .6, .6); g.add(head);
+    const eyes = [.35, -.35].map(zz => { const e = ball(.14, std(0xffffff), 0, 0, 0); g.add(e); return { e, zz }; });
+    scene.add(g);
+    const dir = pick([-1, 1]), z = Rn(-5, 28), craft = { pos: V(0, 0, z), fwd: V(dir, 0, 0), len: 12, beam: 2.4, speed: 2 }; eventCraft.add(craft);
+    let t = 0;
+    return { kind: "nessie",
+      update(dt){
+        t += dt; const x = dir * (-125 + 5 * t);
+        g.position.set(x, surf(x, z) - .4, z); g.rotation.y = dir > 0 ? 0 : Math.PI;
+        humps.forEach((m, i) => { m.position.y = -.3 + Math.sin(t * 2 + i) * .35; });
+        const dip = Math.pow(Math.max(0, Math.sin(t * .7 - 1.2)), 6), H = 6.5 * (1 - dip * 1.05);
+        let hx = 0, hy = 0;
+        neck.forEach((m, i) => { const u = i / 8; hx = .5 + u * 2.4 + Math.sin(t * 1.3 + u * 2) * .5 * u; hy = -.4 + u * H; m.position.set(hx, hy, 0); m.scale.setScalar(.85 - u * .35); });
+        head.position.set(hx + 1, hy + .3, 0); head.rotation.z = Math.sin(t * 1.1) * .2;
+        eyes.forEach(({ e, zz }) => e.position.set(hx + 1.5, hy + .6, zz));
+        craft.pos.set(x, 0, z);
+        return Math.abs(x) < 130;
+      },
+      dispose(){ scene.remove(g); disposeTree(g); eventCraft.delete(craft); } };
+  }
+
+  // ---- helicopter with a sweeping searchlight
+  function evHeli(){
+    const g = new THREE.Group(), paint = std(pick([0xd7263d, 0x1f5fbf, 0xf2c230]), { roughness: .35, metalness: .3 }), dark = std(0x1a1d27);
+    g.add(ball(1, paint, 0, 0, 0, 2.4, 1.3, 1.3));
+    g.add(ball(1, new THREE.MeshStandardMaterial({ color: 0x0c1422, roughness: .1, metalness: .4 }), 1.2, .2, 0, 1.3, .9, 1.05));
+    g.add(box(4.5, .35, .35, paint, -3.8, .2, 0), box(.2, 1.4, .1, paint, -5.9, .7, 0));
+    const rotor = new THREE.Group(); rotor.position.y = 1.5; g.add(rotor);
+    rotor.add(box(12, .06, .35, dark), box(.35, .06, 12, dark));
+    const tail = new THREE.Group(); tail.position.set(-5.9, .9, .15); g.add(tail); tail.add(box(.06, 2.2, .2, dark));
+    for (const zz of [.8, -.8]) g.add(box(3, .1, .1, dark, 0, -1.4, zz));
+    g.add(ball(.18, glow(0xff2a3a, 5), -1, -1, 0));
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.3, 5, 1, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xeaf4ff, transparent: true, opacity: .12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+    beam.geometry.translate(0, -.5, 0); scene.add(beam);
+    const spot = new THREE.Mesh(new THREE.CircleGeometry(5, 32), new THREE.MeshBasicMaterial({ color: 0xeaf4ff, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    spot.rotation.x = -Math.PI / 2; scene.add(spot);
+    scene.add(g);
+    const dir = pick([-1, 1]), y = Rn(30, 42), z = Rn(-40, 15); let t = 0;
+    const down = V(0, -1, 0), tmp = V(0, 0, 0);
+    return { kind: "heli",
+      update(dt){
+        t += dt; const x = dir * (-230 + 30 * t);
+        g.position.set(x, y + Math.sin(t * 1.5), z); g.rotation.set(0, dir > 0 ? 0 : Math.PI, -.12);
+        rotor.rotation.y += dt * 40; tail.rotation.z += dt * 50;
+        const tgt = V(x + dir * 12 + Math.sin(t * 1.3) * 16, .4, z + 20 + Math.cos(t * .9) * 12);
+        tmp.subVectors(tgt, g.position); const len = tmp.length();
+        beam.position.copy(g.position).y -= 1; beam.quaternion.setFromUnitVectors(down, tmp.normalize()); beam.scale.set(1, len, 1);
+        spot.position.copy(tgt);
+        return Math.abs(x) < 240;
+      },
+      dispose(){ [g, beam, spot].forEach(o => { scene.remove(o); disposeTree(o); }); } };
+  }
+
+  const EVENT_TYPES = [["jumper", evJumper, 3], ["shark", evShark, 2], ["dolphins", evDolphins, 2], ["ufo", evUFO, 2], ["fireworks", evFireworks, 1.5],
+                       ["kraken", evKraken, 1.5], ["duck", evDuck, 1], ["jetski", evJetski, 2], ["whale", evWhale, 1.5], ["balloon", evBalloon, 1],
+                       ["nessie", evNessie, 1.5], ["heli", evHeli, 1.5]];
+  function startEvent(kind){
+    const busy = new Set(activeEvents.map(e => e.kind));
+    let entry;
+    if (kind) entry = EVENT_TYPES.find(e => e[0] === kind);
+    else {
+      const opts = EVENT_TYPES.filter(e => !busy.has(e[0])), total = opts.reduce((a, e) => a + e[2], 0);
+      let r = Math.random() * total; entry = opts.find(e => (r -= e[2]) < 0) || opts[0];
+    }
+    if (!entry) return false;
+    let ev = null;
+    try { ev = entry[1](); } catch (err) { console.warn("3D event failed to start:", entry[0], err); }
+    if (ev) activeEvents.push(ev);
+    return !!ev;
+  }
+  function updateEvents(dt){
+    eventClock += dt;
+    if (autoEvents && !reduce && eventClock >= nextEventAt){ nextEventAt = eventClock + Rn(4, 11); if (activeEvents.length < 3) startEvent(); }
+    for (let i = activeEvents.length - 1; i >= 0; i--){
+      const e = activeEvents[i]; let alive = false;
+      try { alive = e.update(dt); } catch (err) { console.warn("3D event failed:", e.kind, err); }
+      if (!alive){ try { e.dispose(); } catch (err) { console.warn(err); } activeEvents.splice(activeEvents.indexOf(e), 1); }
+    }
+  }
+  makePools();
+
   // ------------------------------------------------------------ render loop
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -1519,7 +2037,8 @@ export function create(container){
     if (!reduce){ camera.position.x = Math.sin(now * .05) * 5; camera.lookAt(0, 5, -8); }
     const realDt = Math.min(.25, now - (prevNow || now)); prevNow = now;
     for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, realDt); updateStunt(b, realDt, now); }
-    updateBoats(dt, now); updateExplosions(dt);
+    updateBoats(dt, now); updateExplosions(dt); updateEvents(dt);
+    if (!alarm) updateParticles(dt);
     if (alarm) updateAlarm(dt, now);
     else if (alarmK > 0){ alarmK = Math.max(0, alarmK - dt / 3); applyLook(alarmK); }     // sky fades back to night
     camera.position.y = camY;
@@ -1549,6 +2068,9 @@ export function create(container){
         nextMeteor = clockA + .6;
       } else repairAll();
     },
+    _event(kind){ return startEvent(kind); },                      // for automated checks
+    _events(){ return activeEvents.map(e => e.kind); },
+    _autoEvents(on){ autoEvents = on; },
     _alarm(){
       return { k: +alarmK.toFixed(2), meteors: meteors3.length, wrecks: wrecks.length, burners: burners.length, explosions: explosionCount,
                broken: bridges.map(b => `${(b.pieces || []).filter(o => o.userData.broken).length}/${(b.pieces || []).length}`) };

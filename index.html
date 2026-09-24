@@ -548,39 +548,40 @@
     .leaf, .sail{ transition-duration:.01s; transition-delay:0s !important; }
   }
 
-  /* last-minute car that doesn't make it (cartoon) */
+  /* last-minute car that doesn't make it (cartoon). Paths come from a physics simulation of the
+     leaf angles, so the car only starts up a leaf once it is visibly rising. */
   .stunt, .stunt-splash{ opacity:0; }
   .bscene[data-state="lifting"] :is(.stunt, .stunt-splash){ opacity:1; }
-  .stunt-car{ transform-box:fill-box; transform-origin:50% 50%; }
-  .bscene[data-state="lifting"] .stunt-x{ animation:stuntX 2.7s linear both; }
-  .bscene[data-state="lifting"] .stunt-y{ animation:stuntY 3.7s both; }
-  .bscene[data-state="lifting"] .stunt-car{ animation:stuntR 3.7s both, stuntFade 3.7s both; }
-  @keyframes stuntX{ 0%{ transform:translate(var(--x0), var(--y0)); } 59.26%{ transform:translate(var(--x1), 0px); } 100%{ transform:translate(var(--x2), 0px); } }
-  @keyframes stuntY{
-    0%, 43.24%{ transform:translateY(0px); animation-timing-function:cubic-bezier(.2,.7,.4,1); }
-    55.4%{ transform:translateY(var(--peak)); animation-timing-function:cubic-bezier(.6,0,.9,.5); }
-    72.97%{ transform:translateY(var(--impact)); animation-timing-function:ease-out; }
-    100%{ transform:translateY(var(--sink)); }
-  }
-  @keyframes stuntR{ 0%, 43.24%{ transform:rotate(0deg); } 55.4%{ transform:rotate(-16deg); } 72.97%{ transform:rotate(34deg); } 100%{ transform:rotate(48deg); } }
-  @keyframes stuntFade{ 0%, 75%{ opacity:1; } 100%{ opacity:0; } }
+  #bridgePoole[data-state="lifting"] .stunt0{ animation:stuntPoole0 5.6s linear both; }
+  @keyframes stuntPoole0{ 0.000%{ transform:translate(-40.00px, 195.50px) rotate(0.00deg); opacity:1; } 18.690%{ transform:translate(-40.00px, 195.50px) rotate(0.00deg); opacity:1; } 19.583%{ transform:translate(-32.50px, 195.50px) rotate(0.00deg); opacity:1; } 20.476%{ transform:translate(-25.00px, 195.50px) rotate(0.00deg); opacity:1; } 21.369%{ transform:translate(-17.50px, 195.50px) rotate(0.00deg); opacity:1; } 22.262%{ transform:translate(-10.00px, 195.50px) rotate(0.00deg); opacity:1; } 23.155%{ transform:translate(-2.50px, 195.50px) rotate(0.00deg); opacity:1; } 24.048%{ transform:translate(5.00px, 195.50px) rotate(0.00deg); opacity:1; } 24.940%{ transform:translate(12.50px, 195.50px) rotate(0.00deg); opacity:1; } 25.833%{ transform:translate(20.00px, 195.50px) rotate(0.00deg); opacity:1; } 26.726%{ transform:translate(27.50px, 195.50px) rotate(0.00deg); opacity:1; } 27.619%{ transform:translate(35.00px, 195.50px) rotate(0.00deg); opacity:1; } 28.512%{ transform:translate(42.50px, 195.50px) rotate(0.00deg); opacity:1; } 29.405%{ transform:translate(50.00px, 195.50px) rotate(0.00deg); opacity:1; } 30.298%{ transform:translate(57.50px, 195.50px) rotate(0.00deg); opacity:1; } 31.190%{ transform:translate(65.00px, 195.50px) rotate(0.00deg); opacity:1; } 32.083%{ transform:translate(72.50px, 195.50px) rotate(0.00deg); opacity:1; } 32.976%{ transform:translate(80.00px, 195.50px) rotate(0.00deg); opacity:1; } 33.869%{ transform:translate(87.50px, 195.50px) rotate(0.00deg); opacity:1; } 34.762%{ transform:translate(95.00px, 195.50px) rotate(0.00deg); opacity:1; } 35.655%{ transform:translate(102.50px, 195.50px) rotate(0.00deg); opacity:1; } 36.548%{ transform:translate(110.00px, 195.50px) rotate(0.00deg); opacity:1; } 37.440%{ transform:translate(117.50px, 195.50px) rotate(0.00deg); opacity:1; } 38.333%{ transform:translate(125.00px, 195.50px) rotate(0.00deg); opacity:1; } 39.226%{ transform:translate(132.50px, 195.50px) rotate(0.00deg); opacity:1; } 40.119%{ transform:translate(140.00px, 195.50px) rotate(0.00deg); opacity:1; } 41.012%{ transform:translate(147.50px, 195.50px) rotate(0.00deg); opacity:1; } 41.905%{ transform:translate(155.00px, 195.50px) rotate(0.00deg); opacity:1; } 42.798%{ transform:translate(162.50px, 195.50px) rotate(0.00deg); opacity:1; } 43.690%{ transform:translate(170.00px, 195.50px) rotate(0.00deg); opacity:1; } 44.583%{ transform:translate(177.50px, 195.50px) rotate(0.00deg); opacity:1; } 44.643%{ transform:translate(178.00px, 195.50px) rotate(0.00deg); opacity:1; } 44.661%{ transform:translate(178.00px, 195.50px) rotate(0.00deg); opacity:0; } 100.000%{ transform:translate(178.00px, 195.50px) rotate(0.00deg); opacity:0; } }
+  #bridgePoole[data-state="lifting"] .stuntA{ animation:stuntPooleA 5.6s linear both; }
+  @keyframes stuntPooleA{ 0.000%{ transform:translate(178.00px, 195.00px) rotate(0.00deg); opacity:0; } 44.625%{ transform:translate(178.00px, 195.00px) rotate(0.00deg); opacity:0; } 44.643%{ transform:translate(178.00px, 195.00px) rotate(0.00deg); opacity:1; } 62.946%{ transform:translate(301.00px, 195.00px) rotate(0.00deg); opacity:1; } 62.964%{ transform:translate(301.00px, 195.00px) rotate(0.00deg); opacity:0; } 100.000%{ transform:translate(301.00px, 195.00px) rotate(0.00deg); opacity:0; } }
+  #bridgePoole[data-state="lifting"] .stuntB{ animation:stuntPooleB 5.6s linear both; }
+  @keyframes stuntPooleB{ 0.000%{ transform:translate(273.92px, 122.38px) rotate(-79.08deg); opacity:0; } 62.929%{ transform:translate(273.92px, 122.38px) rotate(-79.08deg); opacity:0; } 62.991%{ transform:translate(273.92px, 122.38px) rotate(-79.08deg); opacity:1; } 63.348%{ transform:translate(274.51px, 119.55px) rotate(-77.57deg); opacity:1; } 63.705%{ transform:translate(275.10px, 117.10px) rotate(-75.58deg); opacity:1; } 64.062%{ transform:translate(275.69px, 115.03px) rotate(-72.86deg); opacity:1; } 64.420%{ transform:translate(276.27px, 113.34px) rotate(-68.92deg); opacity:1; } 64.777%{ transform:translate(276.86px, 112.03px) rotate(-62.82deg); opacity:1; } 65.134%{ transform:translate(277.45px, 111.10px) rotate(-52.44deg); opacity:1; } 65.491%{ transform:translate(278.04px, 110.55px) rotate(-33.17deg); opacity:1; } 65.848%{ transform:translate(278.62px, 110.37px) rotate(-0.38deg); opacity:1; } 66.205%{ transform:translate(279.21px, 110.58px) rotate(32.63deg); opacity:1; } 66.562%{ transform:translate(279.80px, 111.17px) rotate(52.16deg); opacity:1; } 66.920%{ transform:translate(280.39px, 112.14px) rotate(62.66deg); opacity:1; } 67.277%{ transform:translate(280.97px, 113.49px) rotate(68.82deg); opacity:1; } 67.634%{ transform:translate(281.56px, 115.22px) rotate(72.79deg); opacity:1; } 67.991%{ transform:translate(282.15px, 117.33px) rotate(75.53deg); opacity:1; } 68.348%{ transform:translate(282.73px, 119.82px) rotate(77.53deg); opacity:1; } 68.705%{ transform:translate(283.32px, 122.69px) rotate(79.05deg); opacity:1; } 69.062%{ transform:translate(283.91px, 125.94px) rotate(80.24deg); opacity:1; } 69.420%{ transform:translate(284.50px, 129.57px) rotate(81.21deg); opacity:1; } 69.777%{ transform:translate(285.08px, 133.58px) rotate(81.99deg); opacity:1; } 70.134%{ transform:translate(285.67px, 137.97px) rotate(82.65deg); opacity:1; } 70.491%{ transform:translate(286.26px, 142.74px) rotate(83.21deg); opacity:1; } 70.848%{ transform:translate(286.85px, 147.89px) rotate(83.70deg); opacity:1; } 71.205%{ transform:translate(287.43px, 153.42px) rotate(84.11deg); opacity:1; } 71.562%{ transform:translate(288.02px, 159.33px) rotate(84.48deg); opacity:1; } 71.920%{ transform:translate(288.61px, 165.62px) rotate(84.80deg); opacity:1; } 72.277%{ transform:translate(289.20px, 172.29px) rotate(85.09deg); opacity:1; } 72.634%{ transform:translate(289.78px, 179.34px) rotate(85.35deg); opacity:1; } 72.991%{ transform:translate(290.37px, 186.77px) rotate(85.58deg); opacity:1; } 73.348%{ transform:translate(290.96px, 194.58px) rotate(85.79deg); opacity:1; } 73.705%{ transform:translate(291.54px, 202.77px) rotate(85.98deg); opacity:1; } 73.750%{ transform:translate(291.62px, 203.82px) rotate(86.00deg); opacity:1; } 75.580%{ transform:translate(292.02px, 207.61px) rotate(87.36deg); opacity:0.889; } 77.366%{ transform:translate(292.36px, 210.01px) rotate(88.69deg); opacity:0.778; } 79.152%{ transform:translate(292.69px, 212.10px) rotate(90.02deg); opacity:0.667; } 80.938%{ transform:translate(293.02px, 213.87px) rotate(91.36deg); opacity:0.556; } 82.723%{ transform:translate(293.36px, 215.31px) rotate(92.69deg); opacity:0.444; } 84.509%{ transform:translate(293.69px, 216.43px) rotate(94.02deg); opacity:0.333; } 86.295%{ transform:translate(294.02px, 217.24px) rotate(95.36deg); opacity:0.222; } 88.080%{ transform:translate(294.36px, 217.72px) rotate(96.69deg); opacity:0.111; } 89.866%{ transform:translate(294.69px, 217.88px) rotate(98.02deg); opacity:0.0; } 100.000%{ transform:translate(294.69px, 217.88px) rotate(98.02deg); opacity:0; } }
+  #bridgeTwin[data-state="lifting"] .stunt0{ animation:stuntTwin0 5.6s linear both; }
+  @keyframes stuntTwin0{ 0.000%{ transform:translate(-40.00px, 219.45px) rotate(-7.77deg); opacity:1; } 18.214%{ transform:translate(-40.00px, 219.45px) rotate(-7.77deg); opacity:1; } 19.107%{ transform:translate(-32.50px, 218.43px) rotate(-7.77deg); opacity:1; } 20.000%{ transform:translate(-25.00px, 217.41px) rotate(-7.77deg); opacity:1; } 20.893%{ transform:translate(-17.50px, 216.39px) rotate(-7.75deg); opacity:1; } 21.786%{ transform:translate(-10.00px, 215.36px) rotate(-7.67deg); opacity:1; } 22.679%{ transform:translate(-2.50px, 214.34px) rotate(-7.52deg); opacity:1; } 23.571%{ transform:translate(5.00px, 213.32px) rotate(-7.31deg); opacity:1; } 24.464%{ transform:translate(12.50px, 212.33px) rotate(-7.09deg); opacity:1; } 25.357%{ transform:translate(20.00px, 211.37px) rotate(-6.87deg); opacity:1; } 26.250%{ transform:translate(27.50px, 210.44px) rotate(-6.66deg); opacity:1; } 27.143%{ transform:translate(35.00px, 209.54px) rotate(-6.44deg); opacity:1; } 28.036%{ transform:translate(42.50px, 208.66px) rotate(-6.21deg); opacity:1; } 28.929%{ transform:translate(50.00px, 207.82px) rotate(-5.99deg); opacity:1; } 29.821%{ transform:translate(57.50px, 207.00px) rotate(-5.77deg); opacity:1; } 30.714%{ transform:translate(65.00px, 206.22px) rotate(-5.54deg); opacity:1; } 31.607%{ transform:translate(72.50px, 205.46px) rotate(-5.31deg); opacity:1; } 32.500%{ transform:translate(80.00px, 204.73px) rotate(-5.08deg); opacity:1; } 33.393%{ transform:translate(87.50px, 204.04px) rotate(-4.85deg); opacity:1; } 34.286%{ transform:translate(95.00px, 203.37px) rotate(-4.62deg); opacity:1; } 35.179%{ transform:translate(102.50px, 202.74px) rotate(-4.39deg); opacity:1; } 36.071%{ transform:translate(110.00px, 202.13px) rotate(-4.15deg); opacity:1; } 36.964%{ transform:translate(117.50px, 201.56px) rotate(-3.91deg); opacity:1; } 37.857%{ transform:translate(125.00px, 201.01px) rotate(-3.67deg); opacity:1; } 38.750%{ transform:translate(132.50px, 200.50px) rotate(-3.43deg); opacity:1; } 39.643%{ transform:translate(140.00px, 200.02px) rotate(-3.19deg); opacity:1; } 40.536%{ transform:translate(147.50px, 199.57px) rotate(-2.95deg); opacity:1; } 41.429%{ transform:translate(155.00px, 199.15px) rotate(-2.71deg); opacity:1; } 42.321%{ transform:translate(162.50px, 198.77px) rotate(-2.46deg); opacity:1; } 43.214%{ transform:translate(170.00px, 198.42px) rotate(-2.21deg); opacity:1; } 44.107%{ transform:translate(177.50px, 198.09px) rotate(-1.96deg); opacity:1; } 45.000%{ transform:translate(185.00px, 197.81px) rotate(-1.71deg); opacity:1; } 45.893%{ transform:translate(192.50px, 197.55px) rotate(-1.43deg); opacity:1; } 46.786%{ transform:translate(200.00px, 197.33px) rotate(-0.85deg); opacity:1; } 47.679%{ transform:translate(207.50px, 197.14px) rotate(-0.36deg); opacity:1; } 48.214%{ transform:translate(212.00px, 197.04px) rotate(0.00deg); opacity:1; } 48.232%{ transform:translate(212.00px, 197.04px) rotate(0.00deg); opacity:0; } 100.000%{ transform:translate(212.00px, 197.04px) rotate(0.00deg); opacity:0; } }
+  #bridgeTwin[data-state="lifting"] .stuntA{ animation:stuntTwinA 5.6s linear both; }
+  @keyframes stuntTwinA{ 0.000%{ transform:translate(212.00px, 196.00px) rotate(0.00deg); opacity:0; } 48.196%{ transform:translate(212.00px, 196.00px) rotate(0.00deg); opacity:0; } 48.214%{ transform:translate(212.00px, 196.00px) rotate(0.00deg); opacity:1; } 64.756%{ transform:translate(388.00px, 196.00px) rotate(0.00deg); opacity:1; } 64.773%{ transform:translate(388.00px, 196.00px) rotate(0.00deg); opacity:0; } 100.000%{ transform:translate(388.00px, 196.00px) rotate(0.00deg); opacity:0; } }
+  #bridgeTwin[data-state="lifting"] .stuntB{ animation:stuntTwinB 5.6s linear both; }
+  @keyframes stuntTwinB{ 0.000%{ transform:translate(323.75px, 63.36px) rotate(-91.83deg); opacity:0; } 64.738%{ transform:translate(323.75px, 63.36px) rotate(-91.83deg); opacity:0; } 64.800%{ transform:translate(323.75px, 63.36px) rotate(-91.83deg); opacity:1; } 65.157%{ transform:translate(323.59px, 58.58px) rotate(-91.98deg); opacity:1; } 65.515%{ transform:translate(323.43px, 54.17px) rotate(-92.15deg); opacity:1; } 65.872%{ transform:translate(323.27px, 50.15px) rotate(-92.37deg); opacity:1; } 66.229%{ transform:translate(323.11px, 46.50px) rotate(-92.62deg); opacity:1; } 66.586%{ transform:translate(322.95px, 43.24px) rotate(-92.95deg); opacity:1; } 66.943%{ transform:translate(322.79px, 40.35px) rotate(-93.36deg); opacity:1; } 67.300%{ transform:translate(322.63px, 37.85px) rotate(-93.90deg); opacity:1; } 67.657%{ transform:translate(322.47px, 35.72px) rotate(-94.65deg); opacity:1; } 68.015%{ transform:translate(322.32px, 33.98px) rotate(-95.77deg); opacity:1; } 68.372%{ transform:translate(322.16px, 32.61px) rotate(-97.58deg); opacity:1; } 68.729%{ transform:translate(322.00px, 31.63px) rotate(-101.02deg); opacity:1; } 69.086%{ transform:translate(321.84px, 31.02px) rotate(-109.98deg); opacity:1; } 69.443%{ transform:translate(321.68px, 30.80px) rotate(-159.83deg); opacity:1; } 69.800%{ transform:translate(321.52px, 30.95px) rotate(116.38deg); opacity:1; } 70.157%{ transform:translate(321.36px, 31.49px) rotate(102.81deg); opacity:1; } 70.515%{ transform:translate(321.20px, 32.41px) rotate(98.39deg); opacity:1; } 70.872%{ transform:translate(321.04px, 33.70px) rotate(96.23deg); opacity:1; } 71.229%{ transform:translate(320.88px, 35.38px) rotate(94.95deg); opacity:1; } 71.586%{ transform:translate(320.72px, 37.43px) rotate(94.11deg); opacity:1; } 71.943%{ transform:translate(320.56px, 39.87px) rotate(93.51deg); opacity:1; } 72.300%{ transform:translate(320.40px, 42.68px) rotate(93.06deg); opacity:1; } 72.657%{ transform:translate(320.24px, 45.88px) rotate(92.72deg); opacity:1; } 73.015%{ transform:translate(320.08px, 49.45px) rotate(92.44deg); opacity:1; } 73.372%{ transform:translate(319.92px, 53.41px) rotate(92.22deg); opacity:1; } 73.729%{ transform:translate(319.76px, 57.74px) rotate(92.03deg); opacity:1; } 74.086%{ transform:translate(319.60px, 62.46px) rotate(91.87deg); opacity:1; } 74.443%{ transform:translate(319.44px, 67.55px) rotate(91.74deg); opacity:1; } 74.800%{ transform:translate(319.29px, 73.03px) rotate(91.62deg); opacity:1; } 75.157%{ transform:translate(319.13px, 78.88px) rotate(91.52deg); opacity:1; } 75.515%{ transform:translate(318.97px, 85.12px) rotate(91.43deg); opacity:1; } 75.872%{ transform:translate(318.81px, 91.73px) rotate(91.35deg); opacity:1; } 76.229%{ transform:translate(318.65px, 98.73px) rotate(91.28deg); opacity:1; } 76.586%{ transform:translate(318.49px, 106.10px) rotate(91.21deg); opacity:1; } 76.943%{ transform:translate(318.33px, 113.86px) rotate(91.15deg); opacity:1; } 77.300%{ transform:translate(318.17px, 121.99px) rotate(91.10deg); opacity:1; } 77.657%{ transform:translate(318.01px, 130.51px) rotate(91.05deg); opacity:1; } 78.015%{ transform:translate(317.85px, 139.40px) rotate(91.01deg); opacity:1; } 78.372%{ transform:translate(317.69px, 148.68px) rotate(90.97deg); opacity:1; } 78.729%{ transform:translate(317.53px, 158.33px) rotate(90.93deg); opacity:1; } 79.086%{ transform:translate(317.37px, 168.37px) rotate(90.90deg); opacity:1; } 79.443%{ transform:translate(317.21px, 178.78px) rotate(90.86deg); opacity:1; } 79.800%{ transform:translate(317.05px, 189.58px) rotate(90.83deg); opacity:1; } 80.157%{ transform:translate(316.89px, 200.76px) rotate(90.81deg); opacity:1; } 80.247%{ transform:translate(316.85px, 203.61px) rotate(90.80deg); opacity:1; } 82.077%{ transform:translate(317.17px, 207.77px) rotate(92.13deg); opacity:0.889; } 83.863%{ transform:translate(317.50px, 210.18px) rotate(93.46deg); opacity:0.778; } 85.648%{ transform:translate(317.83px, 212.27px) rotate(94.80deg); opacity:0.667; } 87.434%{ transform:translate(318.17px, 214.03px) rotate(96.13deg); opacity:0.556; } 89.220%{ transform:translate(318.50px, 215.48px) rotate(97.46deg); opacity:0.444; } 91.006%{ transform:translate(318.83px, 216.60px) rotate(98.80deg); opacity:0.333; } 92.791%{ transform:translate(319.17px, 217.40px) rotate(100.13deg); opacity:0.222; } 94.577%{ transform:translate(319.50px, 217.88px) rotate(101.46deg); opacity:0.111; } 96.363%{ transform:translate(319.83px, 218.04px) rotate(102.80deg); opacity:0.0; } 100.000%{ transform:translate(319.83px, 218.04px) rotate(102.80deg); opacity:0; } }
+  .stunt0, .stuntA, .stuntB{ opacity:0; }
   .sp-ring{ fill:none; stroke:#dff3ff; stroke-width:.9; transform-box:fill-box; transform-origin:50% 50%; opacity:0; }
-  .bscene[data-state="lifting"] .sp-ring{ animation:spRing 1.2s ease-out 2.7s both; }
+  .bscene[data-state="lifting"] .sp-ring{ animation:spRing 1.2s ease-out var(--tI) both; }
   @keyframes spRing{ 0%{ transform:scale(1); opacity:0; } 8%{ opacity:.9; } 100%{ transform:scale(6, 3); opacity:0; } }
   .sp-crown{ fill:#eaf6ff; transform-box:fill-box; transform-origin:50% 100%; opacity:0; }
-  .bscene[data-state="lifting"] .sp-crown{ animation:spCrown .8s ease-out 2.7s both; }
+  .bscene[data-state="lifting"] .sp-crown{ animation:spCrown .8s ease-out var(--tI) both; }
   @keyframes spCrown{ 0%{ transform:scaleY(.1) scaleX(.6); opacity:0; } 20%{ opacity:.95; } 45%{ transform:scaleY(1.2) scaleX(1.1); } 100%{ transform:scaleY(.2) scaleX(1.4); opacity:0; } }
   .sp-drop{ fill:#eaf6ff; opacity:0; }
-  .bscene[data-state="lifting"] .sp-drop{ animation:spDrop .9s cubic-bezier(.2,.6,.5,1) 2.72s both; }
+  .bscene[data-state="lifting"] .sp-drop{ animation:spDrop .9s cubic-bezier(.2,.6,.5,1) var(--tI) both; }
   @keyframes spDrop{ 0%{ transform:translate(0px, 0px); opacity:0; } 6%{ opacity:1; } 50%{ transform:translate(calc(var(--dx) * .6), var(--dy)); opacity:1; } 100%{ transform:translate(var(--dx), 4px); opacity:0; } }
   .sp-bubble{ fill:none; stroke:#cfeeff; stroke-width:.7; opacity:0; }
   .bscene[data-state="lifting"] .sp-bubble{ animation-name:spBubble; animation-duration:1.4s; animation-timing-function:ease-out; animation-iteration-count:2; animation-fill-mode:both; }
   @keyframes spBubble{ 0%{ transform:translateY(0px); opacity:0; } 20%{ opacity:.9; } 100%{ transform:translateY(-9px); opacity:0; } }
   .sp-duck{ opacity:0; }
-  .bscene[data-state="lifting"] .sp-duck{ animation:spDuck .7s cubic-bezier(.2,.8,.3,1.3) 4.3s both; }
+  .bscene[data-state="lifting"] .sp-duck{ animation:spDuck .7s cubic-bezier(.2,.8,.3,1.3) var(--tD) both; }
   @keyframes spDuck{ from{ transform:translateY(7px); opacity:0; } to{ transform:translateY(0px); opacity:1; } }
   .sp-duck-bob{ transform-box:fill-box; transform-origin:50% 100%; }
-  .bscene[data-state="lifting"] .sp-duck-bob{ animation:bob 1.8s ease-in-out 5s infinite alternate; }
+  .bscene[data-state="lifting"] .sp-duck-bob{ animation:bob 1.8s ease-in-out var(--tB) infinite alternate; }
   @media (prefers-reduced-motion: reduce){ .stunt, .stunt-splash{ display:none; } }
 
   /* boat cursor: the glowing red dot on the bow is the exact click point; clickable things get a lit teal sail */
@@ -813,19 +814,30 @@
           <circle class="pulse" cx="397" cy="197" r="3"/>
           <circle class="mast-tip" cx="397" cy="197" r="2.4" filter="url(#glow)"/>
           <g transform="translate(397,197) scale(1.1)"><path class="glint" d="M0 -7 L1 -1 L7 0 L1 1 L0 7 L-1 1 L-7 0 L-1 -1Z"/></g>
+          <g class="stunt"><g class="stuntA"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
         </g>
-        <!-- the last-minute car that doesn't make it (cartoon; runs at the start of each lift) -->
-        <g class="stunt" style="--x0:-40px;--y0:17px;--x1:196px;--x2:300px;--peak:-30px;--impact:34px;--sink:46px"><g transform="translate(0,189)"><g class="stunt-x"><g class="stunt-y"><g class="stunt-car">
-          <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
-          <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
-          <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
-          <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
-          <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/>
-        </g></g></g></g></g>
-        <g class="stunt-splash" transform="translate(311,224)">
+        <!-- last-minute car (cartoon): approach, catapulted off the rising sail, splash -->
+        <g class="stunt"><g class="stunt0"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
+        <g class="stunt"><g class="stuntB"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
+        <g class="stunt-splash" transform="translate(328,224)" style="--tI:4.50s;--tD:6.10s;--tB:6.80s">
           <ellipse class="sp-ring" cx="0" cy="0" rx="4" ry="1.2"/>
           <path class="sp-crown" d="M-9 0 Q-7 -9 -4 -3 Q-2 -13 0 -4 Q2 -12 4 -3 Q7 -9 9 0Z"/>
-          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:3.0s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:3.25s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:3.5s"/>
+          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:4.80s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:5.05s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:5.30s"/>
           <g transform="translate(0,1) scale(1.3)"><g class="sp-duck"><g class="sp-duck-bob">
             <path d="M-5 0 Q-6 -4 -1 -4 L2 -4 Q5 -4 5 0Z" fill="#f2c230"/><circle cx="2.6" cy="-6" r="2.3" fill="#f2c230"/>
             <path d="M4.6 -6.3 L7 -5.6 L4.6 -5Z" fill="#ff7a3c"/><circle cx="3.2" cy="-6.6" r=".45" fill="#1a1a1a"/>
@@ -896,6 +908,12 @@
           <path d="M190 205 v9M202 205 v9M214 205 v9M226 205 v9M238 205 v9M250 205 v9M262 205 v9M274 205 v9M286 205 v9" stroke="#0e1f52" stroke-width="1.6"/>
           <path class="neon" d="M178 215 H301" stroke="#7fa8ff" stroke-width="1.2"/>
           <path d="M294 196 v18" stroke="#f2c230" stroke-width="3" stroke-dasharray="3 3"/>
+          <g class="stunt"><g class="stuntA"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
         </g>
         <g class="reflect leaf leaf-r">
           <path d="M299.0 195 L311.3 180 L323.6 195 L335.9 180 L348.2 195 L360.5 180 L372.8 195 L385.1 180 L397.4 195 L409.7 180 L422.0 195 M299 180 H422" stroke="#2fb3a3" stroke-width="2.4" fill="none" stroke-linejoin="round"/>
@@ -907,14 +925,13 @@
           <path class="neon" d="M299 215 H422" stroke="#7fa8ff" stroke-width="1.2"/>
           <path d="M306 196 v18" stroke="#f2c230" stroke-width="3" stroke-dasharray="3 3"/>
         </g>
-        <!-- the last-minute car that doesn't make it (cartoon; runs at the start of each lift) -->
-        <g class="stunt" style="--x0:-40px;--y0:0px;--x1:176px;--x2:300px;--peak:-30px;--impact:36px;--sink:48px"><g transform="translate(0,187)"><g class="stunt-x"><g class="stunt-y"><g class="stunt-car">
-          <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
-          <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
-          <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
-          <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
-          <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/>
-        </g></g></g></g></g>
+        <!-- last-minute car (cartoon): approach -->
+        <g class="stunt"><g class="stunt0"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
         <!-- towers (same size, mirrored details) -->
         <g class="reflect">
           <rect x="96" y="118" width="82" height="96" fill="url(#pbTower)"/>
@@ -948,10 +965,17 @@
           <g fill="#fff3c4" filter="url(#glow)"><ellipse cx="436" cy="213" rx="2.4" ry="1"/><ellipse cx="490" cy="213" rx="2.4" ry="1"/></g>
           <rect x="427" y="100" width="9" height="18" rx="2" fill="#141a26"/><circle class="warn" cx="431.5" cy="105" r="2.6"/><circle class="warn b" cx="431.5" cy="112.5" r="2.6"/>
         </g>
-        <g class="stunt-splash" transform="translate(311,224)">
+        <!-- last-minute car (cartoon): off the end of the leaf and into the gap -->
+        <g class="stunt"><g class="stuntB"><g transform="translate(0,-7)">
+            <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+            <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+            <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+            <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+            <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/></g></g></g>
+        <g class="stunt-splash" transform="translate(303,224)" style="--tI:4.13s;--tD:5.73s;--tB:6.43s">
           <ellipse class="sp-ring" cx="0" cy="0" rx="4" ry="1.2"/>
           <path class="sp-crown" d="M-9 0 Q-7 -9 -4 -3 Q-2 -13 0 -4 Q2 -12 4 -3 Q7 -9 9 0Z"/>
-          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:3.0s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:3.25s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:3.5s"/>
+          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:4.43s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:4.68s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:4.93s"/>
           <g transform="translate(0,1) scale(1.3)"><g class="sp-duck"><g class="sp-duck-bob">
             <path d="M-5 0 Q-6 -4 -1 -4 L2 -4 Q5 -4 5 0Z" fill="#f2c230"/><circle cx="2.6" cy="-6" r="2.3" fill="#f2c230"/>
             <path d="M4.6 -6.3 L7 -5.6 L4.6 -5Z" fill="#ff7a3c"/><circle cx="3.2" cy="-6.6" r=".45" fill="#1a1a1a"/>

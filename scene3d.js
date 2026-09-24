@@ -183,10 +183,10 @@ function makeCar(color){
   }
   return g;
 }
-const BOAT_DIMS = { yacht: [9.4, 2.8], superyacht: [18.4, 4.2], trawler: [11.4, 3.4], tug: [9.4, 3.6], rib: [5.9, 2.2], launch: [6.9, 2.4] };
+const BOAT_DIMS = { yacht: [9.4, 2.8, 13.3], superyacht: [18.4, 4.2, 6.4], trawler: [11.4, 3.4, 9.2], tug: [9.4, 3.6, 5.1], rib: [5.9, 2.2, 1.7], launch: [6.9, 2.4, 2.2] };
 function makeBoat(kind){
   const g = new THREE.Group();
-  g.dims = { len: BOAT_DIMS[kind][0], beam: BOAT_DIMS[kind][1] };
+  g.dims = { len: BOAT_DIMS[kind][0], beam: BOAT_DIMS[kind][1], h: BOAT_DIMS[kind][2] };
   const hull = (len, beam, h, color) => {
     const s = new THREE.Shape(); s.moveTo(-len / 2, -beam / 2); s.lineTo(len * .3, -beam / 2); s.quadraticCurveTo(len / 2, -beam * .3, len / 2 + .4, 0);
     s.quadraticCurveTo(len / 2, beam * .3, len * .3, beam / 2); s.lineTo(-len / 2, beam / 2); s.closePath();
@@ -487,6 +487,14 @@ export function create(container){
   poole.group.position.set(37, 0, 0); poole.group.rotation.y = -.42;
   scene.add(poole.group);
   const bridges = [twin, poole];
+  // Solid obstacles (full height) and deck undersides (only boats taller than "under" hit them),
+  // as local x/z boxes. The leaves are checked separately, by height, as they move.
+  twin.solids = [[8.8, 13.2, -(twin.W / 2 + 3.2), twin.W / 2 + 3.2], [21, 23, -1.2, 1.2], [33, 35, -1.2, 1.2], [38, 50, -18, 18]];
+  twin.decks = [[13.2, 47.2, -twin.W / 2, twin.W / 2, twin.deck - 1]];
+  twin.leafThick = 1.6;
+  poole.solids = [[12.3, 20.5, poole.W / 2, poole.W / 2 + 3.6], [12.3, 20.5, -(poole.W / 2 + 3.6), -poole.W / 2], [51, 65, -17, 17]];
+  poole.decks = [[12.3, 64.5, -poole.W / 2, poole.W / 2, poole.deck - 1]];
+  poole.leafThick = 2.0;
 
   // moored yachts along the quays
   twin.group.updateMatrixWorld(); poole.group.updateMatrixWorld();
@@ -507,18 +515,26 @@ export function create(container){
       b.group.add(car); b.cars.push(car);
     }
   }
+  // A car is "on the span" when any part of it is between the hinges (plus a metre).
+  const HALF_CAR = 2.2;
+  const onSpan = (b, x) => Math.abs(x) < b.hinge + 1 + HALF_CAR;
   function updateTraffic(b, dt){
     const closed = b.target === 1 || b.p > .002;
     for (const lane of [0, 1]){
       const cars = b.cars.filter(c => c.userData.lane === lane).sort((a, c) => (c.userData.x - a.userData.x) * (lane === 0 ? 1 : -1));
       cars.forEach((car, i) => {
         const u = car.userData, dir = u.dir;
-        let limit = Infinity;
+        let limit = Infinity, speed = u.v;
         const stop = lane === 0 ? b.stops[0] : b.stops[1];
-        if (closed && dir * (u.x - stop) < 0) limit = Math.min(limit, dir * (stop - u.x));
+        if (closed){
+          const spanEdge = -dir * (b.hinge + 1 + HALF_CAR);          // centre position that just keeps the car off the span
+          if (dir * (u.x - stop) < 0) limit = Math.min(limit, dir * (stop - u.x));                    // before the barrier: wait there
+          else if (dir * (u.x - spanEdge) <= 0) limit = Math.min(limit, dir * (spanEdge - u.x));      // past it: wait at the span edge
+          else if (onSpan(b, u.x)) speed = u.v * 2.2;                                                  // already on it: clear it quickly
+        }
         const ahead = cars[i - 1];
         if (ahead && dir * (ahead.userData.x - u.x) > 0) limit = Math.min(limit, dir * (ahead.userData.x - u.x) - 6.5);
-        const step = Math.max(0, Math.min(u.v * dt, limit));
+        const step = Math.max(0, Math.min(speed * dt, limit));
         u.x += dir * step;
         if (u.x > 62) u.x = -62; if (u.x < -62) u.x = 62;
         car.position.x = u.x;
@@ -579,9 +595,40 @@ export function create(container){
     const sc = m.scale.x, r = m.dims.beam / 2 * sc * .95, off = (m.dims.len / 2 - m.dims.beam / 2) * sc;
     return [-1, 0, 1].map(k => ({ x: m.position.x + fwd.x * off * k, z: m.position.z + fwd.z * off * k, r }));
   }
+  const local = V(0, 0, 0);
+  function hitsBridge(m, circles){
+    for (const b of bridges){
+      const th = THREE.MathUtils.degToRad(Math.min(b.maxDeg * b.p, 89.5)), tan = Math.tan(th), reach = b.L * Math.cos(th);
+      for (const c of circles){
+        local.set(c.x, 0, c.z); b.group.worldToLocal(local);
+        const x = local.x, z = local.z, r = c.r;
+        const inBox = (x0, x1, z0, z1) => (Math.abs(x) + r > x0 && Math.abs(x) - r < x1 && z + r > z0 && z - r < z1);
+        if (b.solids.some(([x0, x1, z0, z1]) => inBox(x0, x1, z0, z1))) return true;
+        if (b.decks.some(([x0, x1, z0, z1, under]) => m.dims.h > under && inBox(x0, x1, z0, z1))) return true;
+        if (Math.abs(z) < b.W / 2 + r){                                   // under the lifting span: check each leaf's height here
+          for (const side of [-1, 1]){
+            const hx = side * b.hinge, dist = -side * (x - hx);           // distance from this leaf's hinge towards the channel
+            if (dist > -r && dist < reach + r){
+              const underside = b.deck - b.leafThick + Math.max(0, dist) * tan;
+              if (m.dims.h > underside) return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+  let explosionCount = 0;
   function checkCollisions(t){
     const live = boats.filter(m => m.visible && !m.userData.dead).concat(moored.filter(m => !m.userData.dead));
     const circles = live.map(hullCircles);
+    for (let i = 0; i < live.length; i++){
+      if (hitsBridge(live[i], circles[i])){
+        const m = live[i]; m.userData.dead = true; m.userData.respawnAt = t + 12 + rand() * 8; m.visible = false;
+        explode(V(m.position.x, .6, m.position.z), m.dims.len);
+        return;
+      }
+    }
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++){
       for (const a of circles[i]) for (const b of circles[j]){
         const dx = a.x - b.x, dz = a.z - b.z;
@@ -639,7 +686,7 @@ export function create(container){
       smoke.push({ s: sp, v: V((rand() - .5) * 2, 3 + rand() * 3, (rand() - .5) * 2), delay: rand() * .35 });
     }
     const light = flashLights[nextFlash++ % flashLights.length]; light.position.copy(pos).setY(3);
-    shake = Math.max(shake, .7 * k);
+    shake = Math.max(shake, .7 * k); explosionCount++;
     explosions.push({ g, t: 0, k, fire, flash, ring, debris, smoke, light });
   }
   function updateExplosions(dt){
@@ -806,7 +853,7 @@ export function create(container){
     water.material.uniforms.time.value += dt * .6;
     if (!reduce){ camera.position.x = Math.sin(now * .05) * 5; camera.lookAt(0, 5, -8); }
     const realDt = Math.min(.25, now - (prevNow || now)); prevNow = now;
-    for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, dt); updateStunt(b, realDt, now); }
+    for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, realDt); updateStunt(b, realDt, now); }
     updateBoats(dt, now); updateExplosions(dt);
     if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y = 12.5 + (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
     composer.render();
@@ -823,6 +870,10 @@ export function create(container){
 
   return {
     setActive(on){ active = on; if (on) resize(); sync(); },
+    _stats(){
+      const onRaised = bridges.map(b => b.p > .02 ? b.cars.filter(c => onSpan(b, c.userData.x)).length : 0);
+      return { explosions: explosionCount, carsOnRaisedSpan: onRaised, p: bridges.map(b => +b.p.toFixed(3)) };
+    },
     _testCollision(){                    // puts the RIB and the launch head-on in view; used by the automated test
       const [rib, launch] = boats;
       rib.userData.dead = launch.userData.dead = false;

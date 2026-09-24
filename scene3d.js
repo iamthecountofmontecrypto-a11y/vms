@@ -183,8 +183,10 @@ function makeCar(color){
   }
   return g;
 }
+const BOAT_DIMS = { yacht: [9.4, 2.8], superyacht: [18.4, 4.2], trawler: [11.4, 3.4], tug: [9.4, 3.6], rib: [5.9, 2.2], launch: [6.9, 2.4] };
 function makeBoat(kind){
   const g = new THREE.Group();
+  g.dims = { len: BOAT_DIMS[kind][0], beam: BOAT_DIMS[kind][1] };
   const hull = (len, beam, h, color) => {
     const s = new THREE.Shape(); s.moveTo(-len / 2, -beam / 2); s.lineTo(len * .3, -beam / 2); s.quadraticCurveTo(len / 2, -beam * .3, len / 2 + .4, 0);
     s.quadraticCurveTo(len / 2, beam * .3, len * .3, beam / 2); s.lineTo(-len / 2, beam / 2); s.closePath();
@@ -531,8 +533,8 @@ export function create(container){
     m.userData = { b, ...path, t: path.always ? (path.phase || 0) : 0, wait: path.always ? 0 : (path.phase || 0) * 12 };
     scene.add(m); boats.push(m); return m;
   }
-  addBoat("rib", null, { from: V(-130, 0, 42), to: V(130, 0, 30), speed: 14, always: true });
-  addBoat("launch", null, { from: V(140, 0, 52), to: V(-140, 0, 58), speed: 6, always: true, phase: .4 });
+  addBoat("rib", null, { from: V(-130, 0, 44), to: V(130, 0, 47), speed: 14, always: true });
+  addBoat("launch", null, { from: V(150, 0, 44), to: V(-150, 0, 52), speed: 6, always: true, phase: .4 });
   const channel = (b, dz, lane, kind, speed, phase) => {
     const a = V(lane, 0, 80 * dz), c = V(lane, 0, -80 * dz);
     b.group.localToWorld(a); b.group.localToWorld(c);
@@ -544,6 +546,11 @@ export function create(container){
   function updateBoats(dt, t){
     for (const m of boats){
       const u = m.userData, len = u.from.distanceTo(u.to);
+      if (u.dead){
+        m.visible = false;
+        if (t < u.respawnAt) continue;
+        u.dead = false; u.t = 0; if (!u.always) u.wait = 3;
+      }
       if (u.always){ u.t = (u.t + u.speed * dt / len) % 1; }
       else {
         const open = u.b.p > .85, crossing = u.t > 0;
@@ -556,7 +563,116 @@ export function create(container){
       m.lookAt(u.to.x, m.position.y, u.to.z); m.rotateY(-Math.PI / 2);
       m.rotation.z += Math.sin(t * 1.3 + len) * .02;
     }
-    for (const m of moored){ m.position.y = Math.sin(t * 1.1 + m.userData.phase) * .07; m.rotation.z = Math.sin(t * .9 + m.userData.phase) * .025; }
+    for (const m of moored){
+      if (m.userData.dead){ m.visible = t >= m.userData.respawnAt; if (m.visible) m.userData.dead = false; else continue; }
+      m.position.y = Math.sin(t * 1.1 + m.userData.phase) * .07; m.rotation.z = Math.sin(t * .9 + m.userData.phase) * .025;
+    }
+    checkCollisions(t);
+  }
+
+  // ------------------------------------------------------------ collisions and explosions
+  // Each hull is approximated by three circles along its length (in the water plane). Any
+  // overlap between two boats blows both up; they respawn later at the start of their route.
+  const fwd = V(0, 0, 0);
+  function hullCircles(m){
+    fwd.set(1, 0, 0).applyQuaternion(m.quaternion); fwd.y = 0; fwd.normalize();
+    const sc = m.scale.x, r = m.dims.beam / 2 * sc * .95, off = (m.dims.len / 2 - m.dims.beam / 2) * sc;
+    return [-1, 0, 1].map(k => ({ x: m.position.x + fwd.x * off * k, z: m.position.z + fwd.z * off * k, r }));
+  }
+  function checkCollisions(t){
+    const live = boats.filter(m => m.visible && !m.userData.dead).concat(moored.filter(m => !m.userData.dead));
+    const circles = live.map(hullCircles);
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++){
+      for (const a of circles[i]) for (const b of circles[j]){
+        const dx = a.x - b.x, dz = a.z - b.z;
+        if (dx * dx + dz * dz < (a.r + b.r) * (a.r + b.r)){
+          const hit = V((a.x + b.x) / 2, .6, (a.z + b.z) / 2);
+          for (const m of [live[i], live[j]]){ m.userData.dead = true; m.userData.respawnAt = t + 12 + rand() * 8; m.visible = false; }
+          explode(hit, Math.max(live[i].dims.len, live[j].dims.len));
+          return;
+        }
+      }
+    }
+  }
+  const smokeTex = canvasTex(64, 64, (g, w) => {
+    const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    r.addColorStop(0, "rgba(90,90,100,.9)"); r.addColorStop(.5, "rgba(60,60,70,.5)"); r.addColorStop(1, "rgba(40,40,50,0)");
+    g.fillStyle = r; g.fillRect(0, 0, w, w);
+  });
+  const fireTex = canvasTex(128, 128, (g, w) => {
+    const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    r.addColorStop(0, "rgba(255,244,214,1)"); r.addColorStop(.25, "rgba(255,190,90,.95)"); r.addColorStop(.55, "rgba(230,90,30,.55)");
+    r.addColorStop(.8, "rgba(120,30,10,.18)"); r.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = r; g.fillRect(0, 0, w, w);
+  });
+  const fxBox = new THREE.BoxGeometry(1, 1, 1), fxRing = new THREE.RingGeometry(.96, 1.08, 64);
+  const debrisMat = std(0x2a2c33, { roughness: .8 }), emberMat = glow(0xff7a1a, 6);
+  // flash lights exist from the start (intensity 0) so an explosion never forces shaders to recompile
+  const flashLights = [0, 1].map(() => { const l = new THREE.PointLight(0xff8a2a, 0, 90, 1.6); scene.add(l); return l; });
+  let nextFlash = 0, shake = 0;
+  const explosions = [];
+  function explode(pos, size){
+    const k = clamp(size / 10, .7, 1.8), g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+    // billowing fire: additive puffs that expand, rise and fade at different rates, plus a brief white flash
+    const puff = (opacity) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); g.add(sp); return sp; };
+    const flash = puff(1); flash.scale.setScalar(3 * k);
+    const fire = [];
+    for (let i = 0; i < 20; i++){
+      const sp = puff(0), a = rand() * Math.PI * 2, up = rand();
+      sp.position.set(Math.cos(a) * rand() * 1.2 * k, rand() * 1.2 * k, Math.sin(a) * rand() * 1.2 * k);
+      fire.push({ s: sp, v: V(Math.cos(a) * (2 + rand() * 4) * k, (2 + up * 6) * k, Math.sin(a) * (2 + rand() * 4) * k),
+                  delay: rand() * .15, life: .9 + rand() * .7, size: (4 + rand() * 4.5) * k });
+    }
+    const ring = new THREE.Mesh(fxRing, new THREE.MeshBasicMaterial({ color: 0xffe2b8, transparent: true, opacity: .6, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = -pos.y + .08; g.add(ring);
+    const debris = [];
+    for (let i = 0; i < 22; i++){
+      const d = new THREE.Mesh(fxBox, i % 3 === 0 ? emberMat : debrisMat), sz = (.2 + rand() * .55) * k;
+      d.scale.set(sz, sz * (.4 + rand() * .6), sz * (.5 + rand())); g.add(d);
+      const a = rand() * Math.PI * 2, out = (4 + rand() * 9) * k;
+      debris.push({ m: d, v: V(Math.cos(a) * out, (8 + rand() * 14) * k, Math.sin(a) * out), w: V(rand() * 8, rand() * 8, rand() * 8) });
+    }
+    const smoke = [];
+    for (let i = 0; i < 16; i++){
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false }));
+      sp.position.set((rand() - .5) * 2 * k, rand() * k, (rand() - .5) * 2 * k); sp.scale.setScalar(2 * k); g.add(sp);
+      smoke.push({ s: sp, v: V((rand() - .5) * 2, 3 + rand() * 3, (rand() - .5) * 2), delay: rand() * .35 });
+    }
+    const light = flashLights[nextFlash++ % flashLights.length]; light.position.copy(pos).setY(3);
+    shake = Math.max(shake, .7 * k);
+    explosions.push({ g, t: 0, k, fire, flash, ring, debris, smoke, light });
+  }
+  function updateExplosions(dt){
+    for (let i = explosions.length - 1; i >= 0; i--){
+      const e = explosions[i]; e.t += dt; const t = e.t, k = e.k;
+      e.flash.scale.setScalar((3 + t * 40) * k); e.flash.material.opacity = clamp(1 - t / .22, 0, 1);
+      for (const f of e.fire){
+        const ft = t - f.delay; if (ft < 0) continue;
+        const u = ft / f.life;
+        f.s.position.addScaledVector(f.v, dt); f.v.multiplyScalar(1 - dt * 2.2); f.v.y += dt * 1.5;
+        f.s.scale.setScalar(f.size * (.35 + Math.min(1, u * 2.2)));
+        f.s.material.opacity = u < 1 ? clamp(Math.min(ft * 12, 1) * (1 - u) * (1 - u * .4), 0, 1) : 0;
+        f.s.material.color.setHSL(.08 - u * .05, 1, clamp(.75 - u * .45, .2, .75));
+      }
+      e.ring.scale.setScalar((1 + t * 16) * k); e.ring.material.opacity = clamp(.6 - t * .45, 0, .6);
+      e.light.intensity = 2600 * k * Math.exp(-t * 3.2);
+      for (const d of e.debris){
+        if (d.m.position.y + e.g.position.y > 0 || d.v.y > 0){
+          d.v.y -= 16 * dt; d.m.position.addScaledVector(d.v, dt);
+          d.m.rotation.x += d.w.x * dt; d.m.rotation.y += d.w.y * dt; d.m.rotation.z += d.w.z * dt;
+        } else { d.m.position.y -= .6 * dt; d.m.scale.multiplyScalar(1 - dt * .6); }
+      }
+      for (const p of e.smoke){
+        const st = t - p.delay; if (st < 0) continue;
+        p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - dt * .35);
+        p.s.scale.setScalar((2 + st * 3.2) * k); p.s.material.opacity = clamp(Math.min(st * 3, 1) * (1 - st / 4.2), 0, 1) * .75;
+      }
+      if (t > 4.5){
+        scene.remove(e.g); e.light.intensity = 0;
+        [e.flash, e.ring].forEach(m => m.material.dispose()); e.fire.forEach(f => f.s.material.dispose()); e.smoke.forEach(p => p.s.material.dispose());
+        explosions.splice(i, 1);
+      }
+    }
   }
 
   // ------------------------------------------------------------ the last-minute car
@@ -681,17 +797,18 @@ export function create(container){
     const wide = camera.aspect > 2.2;
     camera.fov = wide ? 21 : 38;
     camera.position.set(0, wide ? 12.5 : 22, wide ? 100 : 135);
-    camera.lookAt(0, 6.5, -8);
+    camera.lookAt(0, 5, -8);
     camera.updateProjectionMatrix();
   }
   function frame(ms){
     raf = requestAnimationFrame(frame);
     const now = ms / 1000, dt = Math.min(.05, now - (last || now)); last = now;
     water.material.uniforms.time.value += dt * .6;
-    if (!reduce){ camera.position.x = Math.sin(now * .05) * 5; camera.lookAt(0, 6.5, -8); }
+    if (!reduce){ camera.position.x = Math.sin(now * .05) * 5; camera.lookAt(0, 5, -8); }
     const realDt = Math.min(.25, now - (prevNow || now)); prevNow = now;
     for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, dt); updateStunt(b, realDt, now); }
-    updateBoats(dt, now);
+    updateBoats(dt, now); updateExplosions(dt);
+    if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y = 12.5 + (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
     composer.render();
   }
   function sync(){
@@ -706,6 +823,13 @@ export function create(container){
 
   return {
     setActive(on){ active = on; if (on) resize(); sync(); },
+    _testCollision(){                    // puts the RIB and the launch head-on in view; used by the automated test
+      const [rib, launch] = boats;
+      rib.userData.dead = launch.userData.dead = false;
+      rib.userData.t = .5; launch.userData.t = .48;
+      const mid = V(0, 0, 0).lerpVectors(rib.userData.from, rib.userData.to, .5);
+      launch.userData.from = mid.clone().add(V(40, 0, 0)); launch.userData.to = mid.clone().add(V(-40, 0, 0)); launch.userData.t = .45;
+    },
     // states: { POOLE: bool lifting, TWIN: bool lifting, color: 'BOTH'|'POOLE'|'TWIN'|'OTHER' }
     setStates(states){
       const now = performance.now() / 1000;

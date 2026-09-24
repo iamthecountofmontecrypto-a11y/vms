@@ -2000,7 +2000,7 @@ tickClock();
     if (!loading) loading = (async () => {
       if (!webglOK()) throw new Error("WebGL is not available");
       msg.textContent = "Loading 3D…";
-      const mod = await import("./scene3d.js?v=2");
+      const mod = await import("./scene3d.js?v=3");
       api = mod.create(host);
       msg.textContent = "";
       api.setStates(states3d);
@@ -2023,6 +2023,7 @@ tickClock();
     mode = b.dataset.mode; note.textContent = ""; save(); apply();
   }));
   window.__push3d = () => { if (api) api.setStates(states3d); };
+  window.__scene3d = () => api;   // for automated checks
   window.__apply3d = apply;
   apply();
 })();

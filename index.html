@@ -548,6 +548,41 @@
     .leaf, .sail{ transition-duration:.01s; transition-delay:0s !important; }
   }
 
+  /* last-minute car that doesn't make it (cartoon) */
+  .stunt, .stunt-splash{ opacity:0; }
+  .bscene[data-state="lifting"] :is(.stunt, .stunt-splash){ opacity:1; }
+  .stunt-car{ transform-box:fill-box; transform-origin:50% 50%; }
+  .bscene[data-state="lifting"] .stunt-x{ animation:stuntX 2.7s linear both; }
+  .bscene[data-state="lifting"] .stunt-y{ animation:stuntY 3.7s both; }
+  .bscene[data-state="lifting"] .stunt-car{ animation:stuntR 3.7s both, stuntFade 3.7s both; }
+  @keyframes stuntX{ 0%{ transform:translate(var(--x0), var(--y0)); } 59.26%{ transform:translate(var(--x1), 0px); } 100%{ transform:translate(var(--x2), 0px); } }
+  @keyframes stuntY{
+    0%, 43.24%{ transform:translateY(0px); animation-timing-function:cubic-bezier(.2,.7,.4,1); }
+    55.4%{ transform:translateY(var(--peak)); animation-timing-function:cubic-bezier(.6,0,.9,.5); }
+    72.97%{ transform:translateY(var(--impact)); animation-timing-function:ease-out; }
+    100%{ transform:translateY(var(--sink)); }
+  }
+  @keyframes stuntR{ 0%, 43.24%{ transform:rotate(0deg); } 55.4%{ transform:rotate(-16deg); } 72.97%{ transform:rotate(34deg); } 100%{ transform:rotate(48deg); } }
+  @keyframes stuntFade{ 0%, 75%{ opacity:1; } 100%{ opacity:0; } }
+  .sp-ring{ fill:none; stroke:#dff3ff; stroke-width:.9; transform-box:fill-box; transform-origin:50% 50%; opacity:0; }
+  .bscene[data-state="lifting"] .sp-ring{ animation:spRing 1.2s ease-out 2.7s both; }
+  @keyframes spRing{ 0%{ transform:scale(1); opacity:0; } 8%{ opacity:.9; } 100%{ transform:scale(6, 3); opacity:0; } }
+  .sp-crown{ fill:#eaf6ff; transform-box:fill-box; transform-origin:50% 100%; opacity:0; }
+  .bscene[data-state="lifting"] .sp-crown{ animation:spCrown .8s ease-out 2.7s both; }
+  @keyframes spCrown{ 0%{ transform:scaleY(.1) scaleX(.6); opacity:0; } 20%{ opacity:.95; } 45%{ transform:scaleY(1.2) scaleX(1.1); } 100%{ transform:scaleY(.2) scaleX(1.4); opacity:0; } }
+  .sp-drop{ fill:#eaf6ff; opacity:0; }
+  .bscene[data-state="lifting"] .sp-drop{ animation:spDrop .9s cubic-bezier(.2,.6,.5,1) 2.72s both; }
+  @keyframes spDrop{ 0%{ transform:translate(0px, 0px); opacity:0; } 6%{ opacity:1; } 50%{ transform:translate(calc(var(--dx) * .6), var(--dy)); opacity:1; } 100%{ transform:translate(var(--dx), 4px); opacity:0; } }
+  .sp-bubble{ fill:none; stroke:#cfeeff; stroke-width:.7; opacity:0; }
+  .bscene[data-state="lifting"] .sp-bubble{ animation-name:spBubble; animation-duration:1.4s; animation-timing-function:ease-out; animation-iteration-count:2; animation-fill-mode:both; }
+  @keyframes spBubble{ 0%{ transform:translateY(0px); opacity:0; } 20%{ opacity:.9; } 100%{ transform:translateY(-9px); opacity:0; } }
+  .sp-duck{ opacity:0; }
+  .bscene[data-state="lifting"] .sp-duck{ animation:spDuck .7s cubic-bezier(.2,.8,.3,1.3) 4.3s both; }
+  @keyframes spDuck{ from{ transform:translateY(7px); opacity:0; } to{ transform:translateY(0px); opacity:1; } }
+  .sp-duck-bob{ transform-box:fill-box; transform-origin:50% 100%; }
+  .bscene[data-state="lifting"] .sp-duck-bob{ animation:bob 1.8s ease-in-out 5s infinite alternate; }
+  @media (prefers-reduced-motion: reduce){ .stunt, .stunt-splash{ display:none; } }
+
   /* boat cursor: the glowing red dot on the bow is the exact click point; clickable things get a lit teal sail */
   html, body{ cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='h'%3E%3Cstop offset='0' stop-color='%23ff2d3d' stop-opacity='.95'/%3E%3Cstop offset='.45' stop-color='%23ff2d3d' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%23ff2d3d' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg transform='translate%284 0%29'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3Ccircle cx='5' cy='17' r='5' fill='url%28%23h%29'/%3E%3Ccircle cx='5' cy='17' r='1.9' fill='%23ff2d3d' stroke='%23ffffff' stroke-width='.8'/%3E%3C/svg%3E") 5 17, auto; }
   a, button, select, label, summary, [role="button"], [data-run], input[type="checkbox"], .timeline div{
@@ -779,6 +814,23 @@
           <circle class="mast-tip" cx="397" cy="197" r="2.4" filter="url(#glow)"/>
           <g transform="translate(397,197) scale(1.1)"><path class="glint" d="M0 -7 L1 -1 L7 0 L1 1 L0 7 L-1 1 L-7 0 L-1 -1Z"/></g>
         </g>
+        <!-- the last-minute car that doesn't make it (cartoon; runs at the start of each lift) -->
+        <g class="stunt" style="--x0:-40px;--y0:17px;--x1:196px;--x2:300px;--peak:-30px;--impact:34px;--sink:46px"><g transform="translate(0,189)"><g class="stunt-x"><g class="stunt-y"><g class="stunt-car">
+          <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+          <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+          <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+          <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+          <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/>
+        </g></g></g></g></g>
+        <g class="stunt-splash" transform="translate(311,224)">
+          <ellipse class="sp-ring" cx="0" cy="0" rx="4" ry="1.2"/>
+          <path class="sp-crown" d="M-9 0 Q-7 -9 -4 -3 Q-2 -13 0 -4 Q2 -12 4 -3 Q7 -9 9 0Z"/>
+          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:3.0s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:3.25s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:3.5s"/>
+          <g transform="translate(0,1) scale(1.3)"><g class="sp-duck"><g class="sp-duck-bob">
+            <path d="M-5 0 Q-6 -4 -1 -4 L2 -4 Q5 -4 5 0Z" fill="#f2c230"/><circle cx="2.6" cy="-6" r="2.3" fill="#f2c230"/>
+            <path d="M4.6 -6.3 L7 -5.6 L4.6 -5Z" fill="#ff7a3c"/><circle cx="3.2" cy="-6.6" r=".45" fill="#1a1a1a"/>
+          </g></g></g>
+        </g>
         <!-- small craft cruising in the foreground, bridge up or down -->
         <g class="smallcraft"><g transform="translate(0,246) scale(1.1)"><g class="sailR" style="animation-duration:70s;animation-delay:-25s"><g class="bob"><path class="wake2" d="M-3 .4 L-31 -1.6 M-3 1 L-31 3.2"/><ellipse class="foam" cx="-2" cy=".6" rx="4.0" ry="1.4"/><path class="bow" d="M22 .2 q3 -1.6 6 .4"/><path d="M0 0 Q12 -3.5 24 0 Q12 2 0 0Z" fill="#f2c230"/><circle cx="12" cy="-4.5" r="1.8" fill="#e56a2c"/><g class="paddle"><path d="M5 -9 L19 0" stroke="#dfe6ef" stroke-width="1"/><path d="M4 -10 l2.5 1.6M18 -1 l2.5 1.6" stroke="#2de2c4" stroke-width="2.2"/></g><g transform="scale(1,-1)" opacity=".22"><path d="M0 0 Q12 -3.5 24 0 Q12 2 0 0Z" fill="#f2c230"/><circle cx="12" cy="-4.5" r="1.8" fill="#e56a2c"/><g class="paddle"><path d="M5 -9 L19 0" stroke="#dfe6ef" stroke-width="1"/><path d="M4 -10 l2.5 1.6M18 -1 l2.5 1.6" stroke="#2de2c4" stroke-width="2.2"/></g></g></g></g></g></g>
         <g class="smallcraft"><g transform="translate(0,258) scale(1.15)"><g class="sailL" style="animation-duration:9s;animation-delay:-3s"><g class="bob"><g transform="translate(32,0) scale(-1,1)"><path class="wake2" d="M-3 .4 L-42 -1.6 M-3 1 L-42 3.2"/><ellipse class="foam" cx="-2" cy=".6" rx="4.0" ry="1.4"/><path class="bow" d="M30 .2 q3 -1.6 6 .4"/><path class="spray" d="M-2 -2 l-7 -4 M-2 0 l-9 -1" stroke="#e9f6ff" stroke-width="1" stroke-linecap="round"/><path d="M0 -3 L25 -3 Q31 -3 30 -.5 L27 1.5 L3 1.5 Z" fill="#2a2f3c"/><path d="M1 -3 L25 -3" stroke="#ff7a3c" stroke-width="1.6"/><rect x="12" y="-8" width="6" height="5" rx="1" fill="#cfd6e2"/><circle cx="10" cy="-6" r="1.6" fill="#f2c230"/><circle cx="15" cy="-10" r="1.2" fill="#fff" filter="url(#glow)"/><g transform="scale(1,-1)" opacity=".22"><path d="M0 -3 L25 -3 Q31 -3 30 -.5 L27 1.5 L3 1.5 Z" fill="#2a2f3c"/><path d="M1 -3 L25 -3" stroke="#ff7a3c" stroke-width="1.6"/><rect x="12" y="-8" width="6" height="5" rx="1" fill="#cfd6e2"/><circle cx="10" cy="-6" r="1.6" fill="#f2c230"/><circle cx="15" cy="-10" r="1.2" fill="#fff" filter="url(#glow)"/></g></g></g></g></g></g>
@@ -855,6 +907,14 @@
           <path class="neon" d="M299 215 H422" stroke="#7fa8ff" stroke-width="1.2"/>
           <path d="M306 196 v18" stroke="#f2c230" stroke-width="3" stroke-dasharray="3 3"/>
         </g>
+        <!-- the last-minute car that doesn't make it (cartoon; runs at the start of each lift) -->
+        <g class="stunt" style="--x0:-40px;--y0:0px;--x1:176px;--x2:300px;--peak:-30px;--impact:36px;--sink:48px"><g transform="translate(0,187)"><g class="stunt-x"><g class="stunt-y"><g class="stunt-car">
+          <polygon points="21.5,2 48,-2.5 48,9.5 21.5,5.5" fill="url(#beamR)"/>
+          <path d="M0 7 L0 3 Q1 0 5 0 L9 -3 L15 -3 L19 0 Q22 1 22 4 L22 7Z" fill="#e0343f"/>
+          <path d="M9.8 -2.3 L14.6 -2.3 L17.4 0 L8 0Z" fill="#9fc4ff" opacity=".6"/>
+          <circle cx="5" cy="7.3" r="1.9" fill="#0b0f18"/><circle cx="17" cy="7.3" r="1.9" fill="#0b0f18"/>
+          <circle cx="21.5" cy="3.6" r="1.3" fill="#fff6c8"/><circle cx=".6" cy="3.6" r="1.1" fill="#ff4050"/>
+        </g></g></g></g></g>
         <!-- towers (same size, mirrored details) -->
         <g class="reflect">
           <rect x="96" y="118" width="82" height="96" fill="url(#pbTower)"/>
@@ -887,6 +947,15 @@
           <rect x="450" y="190" width="10" height="24" fill="#3d6e62"/>
           <g fill="#fff3c4" filter="url(#glow)"><ellipse cx="436" cy="213" rx="2.4" ry="1"/><ellipse cx="490" cy="213" rx="2.4" ry="1"/></g>
           <rect x="427" y="100" width="9" height="18" rx="2" fill="#141a26"/><circle class="warn" cx="431.5" cy="105" r="2.6"/><circle class="warn b" cx="431.5" cy="112.5" r="2.6"/>
+        </g>
+        <g class="stunt-splash" transform="translate(311,224)">
+          <ellipse class="sp-ring" cx="0" cy="0" rx="4" ry="1.2"/>
+          <path class="sp-crown" d="M-9 0 Q-7 -9 -4 -3 Q-2 -13 0 -4 Q2 -12 4 -3 Q7 -9 9 0Z"/>
+          <circle class="sp-drop" r="1.2" style="--dx:-15px;--dy:-15px"/><circle class="sp-drop" r="1.2" style="--dx:-9px;--dy:-21px"/><circle class="sp-drop" r="1.2" style="--dx:-3px;--dy:-24px"/><circle class="sp-drop" r="1.2" style="--dx:4px;--dy:-23px"/><circle class="sp-drop" r="1.2" style="--dx:10px;--dy:-19px"/><circle class="sp-drop" r="1.2" style="--dx:16px;--dy:-13px"/><circle class="sp-bubble" cx="-3" cy="-1" r="1.3" style="animation-delay:3.0s"/><circle class="sp-bubble" cx="2" cy="-1" r="1" style="animation-delay:3.25s"/><circle class="sp-bubble" cx="0" cy="-1" r="1.5" style="animation-delay:3.5s"/>
+          <g transform="translate(0,1) scale(1.3)"><g class="sp-duck"><g class="sp-duck-bob">
+            <path d="M-5 0 Q-6 -4 -1 -4 L2 -4 Q5 -4 5 0Z" fill="#f2c230"/><circle cx="2.6" cy="-6" r="2.3" fill="#f2c230"/>
+            <path d="M4.6 -6.3 L7 -5.6 L4.6 -5Z" fill="#ff7a3c"/><circle cx="3.2" cy="-6.6" r=".45" fill="#1a1a1a"/>
+          </g></g></g>
         </g>
         <!-- small craft cruising in the foreground, bridge up or down -->
         <g class="smallcraft"><g transform="translate(0,250) scale(1.15)"><g class="sailR" style="animation-duration:26s;animation-delay:-8s"><g class="bob"><path class="wake2" d="M-3 .4 L-42 -1.6 M-3 1 L-42 3.2"/><ellipse class="foam" cx="-2" cy=".6" rx="4.0" ry="1.4"/><path class="bow" d="M30 .2 q3 -1.6 6 .4"/><path d="M0 -4 L32 -4 L28 2 L4 2Z" fill="#e9eef6"/><path d="M8 -4 L10 -10 L24 -10 L26 -4Z" fill="#2b5fb3"/><rect x="12" y="-9" width="10" height="3" fill="#ffe2b8" filter="url(#glow)"/><circle cx="1" cy="-2" r="1.2" fill="#ff4050" filter="url(#glow)"/><circle cx="31" cy="-2" r="1.2" fill="#41ff8b" filter="url(#glow)"/><g transform="scale(1,-1)" opacity=".22"><path d="M0 -4 L32 -4 L28 2 L4 2Z" fill="#e9eef6"/><path d="M8 -4 L10 -10 L24 -10 L26 -4Z" fill="#2b5fb3"/><rect x="12" y="-9" width="10" height="3" fill="#ffe2b8" filter="url(#glow)"/><circle cx="1" cy="-2" r="1.2" fill="#ff4050" filter="url(#glow)"/><circle cx="31" cy="-2" r="1.2" fill="#41ff8b" filter="url(#glow)"/></g></g></g></g></g>

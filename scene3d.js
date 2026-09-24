@@ -325,11 +325,6 @@ function canvasTex(w, h, draw, srgb = true){
   t.anisotropy = 4;
   return t;
 }
-const skyTex = () => canvasTex(4, 256, (g, w, h) => {
-  const gr = g.createLinearGradient(0, 0, 0, h);
-  gr.addColorStop(0, "#02040c"); gr.addColorStop(.6, "#060b22"); gr.addColorStop(.85, "#0c1433"); gr.addColorStop(1, "#131c42");
-  g.fillStyle = gr; g.fillRect(0, 0, w, h);
-});
 const towerFacade = () => canvasTex(256, 320, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, w, 0);
   gr.addColorStop(0, "#5aa895"); gr.addColorStop(.5, "#7cc8b3"); gr.addColorStop(1, "#4d9584");
@@ -418,6 +413,7 @@ function beamGeo(a, b, t = .18, t2 = t){      // a box spanning point a -> point
 }
 const merged = (geos, mat) => new THREE.Mesh(mergeGeometries(geos, false), mat);
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const fixed = o => { o.userData.fixed = true; return o; };     // foundations: charred by meteors, never knocked down
 function orientBetween(mesh, a, b){          // cylinder (axis y, height 1) stretched from a to b
   const d = new THREE.Vector3().subVectors(b, a), len = d.length();
   mesh.position.copy(a).addScaledVector(d, .5);
@@ -529,11 +525,23 @@ export function create(container){
   Object.assign(renderer.domElement.style, { display: "block", width: "100%", height: "100%" });
 
   const scene = new THREE.Scene();
-  scene.background = skyTex();
+  // sky gradient, repainted as it turns blood red in alarm mode (k: 0 = night, 1 = red)
+  const skyCanvas = document.createElement("canvas"); skyCanvas.width = 4; skyCanvas.height = 256;
+  const skyCtx = skyCanvas.getContext("2d"), skyTexture = new THREE.CanvasTexture(skyCanvas);
+  skyTexture.colorSpace = THREE.SRGBColorSpace;
+  const SKY_STOPS = [[0, 0x02040c, 0x160205], [.6, 0x060b22, 0x520a0e], [.85, 0x0c1433, 0x951a12], [1, 0x131c42, 0xd9491c]];
+  const skyA = new THREE.Color(), skyB = new THREE.Color();
+  function paintSky(k){
+    const gr = skyCtx.createLinearGradient(0, 0, 0, 256);
+    for (const [o, a, b] of SKY_STOPS) gr.addColorStop(o, "#" + skyA.setHex(a).lerp(skyB.setHex(b), k).getHexString());
+    skyCtx.fillStyle = gr; skyCtx.fillRect(0, 0, 4, 256); skyTexture.needsUpdate = true;
+  }
+  paintSky(0);
+  scene.background = skyTexture;
   scene.fog = new THREE.FogExp2(0x080d26, 0.0075);
   const camera = new THREE.PerspectiveCamera(24, 4, .5, 2500);
 
-  scene.add(new THREE.HemisphereLight(0x5566a8, 0x0a0c18, .9));
+  const hemi = new THREE.HemisphereLight(0x5566a8, 0x0a0c18, .9); scene.add(hemi);
   const moonLight = new THREE.DirectionalLight(0xc6d4ff, 1.6); moonLight.position.set(-60, 90, 40); scene.add(moonLight);
 
   // moon, halo, stars
@@ -551,7 +559,8 @@ export function create(container){
     starPos.push(r * Math.cos(th) * Math.cos(ph), r * Math.sin(ph), r * Math.sin(th) * Math.cos(ph));
   }
   starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
-  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .8 })));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: .8 });
+  scene.add(new THREE.Points(starGeo, starMat));
 
   // water: Gerstner swell on an adaptive grid, a half-float planar mirror, GGX glints from the moon
   // and every lamp, Fresnel, and foam from signed distances to the piers, hulls and wakes
@@ -624,7 +633,7 @@ export function create(container){
   const stone = stoneTex();
   function quay(g, x, deck, W, len){       // stone quay wall with bollards
     const t = stone.clone(); t.needsUpdate = true; t.repeat.set(len / 8, 1);
-    g.add(box(len, deck + 1, W + 24, new THREE.MeshStandardMaterial({ map: t, roughness: .95 }), x, (deck + 1) / 2 - 1, 0));
+    g.add(fixed(box(len, deck + 1, W + 24, new THREE.MeshStandardMaterial({ map: t, roughness: .95 }), x, (deck + 1) / 2 - 1, 0)));
     const bol = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .28, .7, 10), std(0x15181f, { metalness: .5 }), 6); const m4 = new THREE.Matrix4();
     for (let i = 0; i < 6; i++){ m4.makeTranslation(x - len / 2 + 1.5 + i * (len - 3) / 5, deck + .35, W / 2 + 11); bol.setMatrixAt(i, m4); }
     g.add(bol);
@@ -655,15 +664,15 @@ export function create(container){
     const steel = std(0xc9d2de, { metalness: .75, roughness: .28 });
     for (const sx of [-1, 1]){
       const px = sx * (twin.hinge + 2.2);
-      g.add(box(4.4, deck + 1, W + 2, concrete, px, (deck - 1) / 2 - .5, 0));                                   // main pier
+      g.add(fixed(box(4.4, deck + 1, W + 2, concrete, px, (deck - 1) / 2 - .5, 0)));                                   // main pier
       for (const sz of [-1, 1]){                                                                                // rounded pier noses
         const nose = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, deck + 1, 20, 1, false, 0, Math.PI), concrete);
-        nose.position.set(px, (deck - 1) / 2 - .5, sz * (W / 2 + 1)); nose.rotation.y = sz > 0 ? -Math.PI / 2 : Math.PI / 2; g.add(nose);
+        nose.position.set(px, (deck - 1) / 2 - .5, sz * (W / 2 + 1)); nose.rotation.y = sz > 0 ? -Math.PI / 2 : Math.PI / 2; g.add(fixed(nose));
       }
       g.add(merged(Array.from({ length: 7 }, (_, i) => boxGeo(.18, deck - 1, .5, px - sx * 2.3, (deck - 1) / 2 - 1, -W / 2 + 1 + i * (W - 2) / 6)), std(0x2b2621, { roughness: 1 })));   // fender boards
       g.add(box(34, 1, W, deckMat, sx * (twin.hinge + 4.4 + 17), deck - .5, 0));                               // approach span
       g.add(merged([boxGeo(34, 1.1, .5, sx * (twin.hinge + 4.4 + 17), deck - 1.55, W / 2 - 2), boxGeo(34, 1.1, .5, sx * (twin.hinge + 4.4 + 17), deck - 1.55, -W / 2 + 2)], std(0x7d8798, { metalness: .4 })));
-      for (const pxx of [22, 34]) g.add(box(2, deck, 2.4, concrete, sx * pxx, deck / 2 - 1, 0));
+      for (const pxx of [22, 34]) g.add(fixed(box(2, deck, 2.4, concrete, sx * pxx, deck / 2 - 1, 0)));
       roadPlane(g, 34, W, sx * (twin.hinge + 4.4 + 17), deck);
       // stainless balustrade: posts, rails and glass
       const postsGeo = [], railGeo = [];
@@ -745,7 +754,7 @@ export function create(container){
       const cx = sx * (poole.hinge + 4.1);
       for (const sz of [-1, 1]){                                   // a tower each side of the road
         const tz = sz * (W / 2 + 1.8);
-        const t = new THREE.Mesh(new THREE.BoxGeometry(8.2, 14, 3.6), towerMats); t.position.set(cx, 6, tz); g.add(t);
+        const t = new THREE.Mesh(new THREE.BoxGeometry(8.2, 14, 3.6), towerMats); t.position.set(cx, 6, tz); g.add(fixed(t));
         // vertical ribs, cornice band, parapet and rooftop plant
         const det = [];
         for (const rx of [-3.6, -1.2, 1.2, 3.6]) det.push(boxGeo(.28, 13.2, .16, cx + rx, 5.8, tz + sz * 1.86));
@@ -777,9 +786,9 @@ export function create(container){
       g.add(lamp(sx * 32, W / 2 - .4, deck, 0xffd98a, true)); g.add(lamp(sx * 44, -W / 2 + .4, deck, 0xffd98a, false));
       const piles = new THREE.InstancedMesh(new THREE.CylinderGeometry(.28, .3, deck + 2, 10), std(0x2b2621, { roughness: 1 }), 10); const m4 = new THREE.Matrix4();
       for (let i = 0; i < 10; i++){ m4.makeTranslation(sx * (poole.hinge + .6 + (i % 5) * 1.9), (deck + 2) / 2 - 1.5, (i < 5 ? 1 : -1) * (W / 2 + 4.6)); piles.setMatrixAt(i, m4); }
-      g.add(piles);
+      g.add(fixed(piles));
       quay(g, sx * 58, deck, W, 14);
-      for (let i = 0; i < 3; i++) g.add(makeBuilding(12, 7 + i * 3, 9, sx * (52 + i * 12), -28 - i * 7, 0, true));   // waterfront sheds
+      for (let i = 0; i < 3; i++) g.add(fixed(makeBuilding(12, 7 + i * 3, 9, sx * (52 + i * 12), -28 - i * 7, 0, true)));   // waterfront sheds
       poole.barriers.push(barrier(g, sx * 25.5, deck, sx < 0 ? W / 2 - .3 : -W / 2 + .3, W / 2 - .6));
     }
     const chevron = new THREE.MeshStandardMaterial({ map: chevronTex(), roughness: .6 });
@@ -861,6 +870,7 @@ export function create(container){
   const HALF_CAR = 2.2;
   const onSpan = (b, x) => Math.abs(x) < b.hinge + 1 + HALF_CAR;
   function updateTraffic(b, dt){
+    if (b.broken) return;                                     // wrecked: whatever is left stays put
     const closed = b.target === 1 || b.p > .002;
     for (const lane of [0, 1]){
       const cars = b.cars.filter(c => c.userData.lane === lane).sort((a, c) => (c.userData.x - a.userData.x) * (lane === 0 ? 1 : -1));
@@ -938,7 +948,7 @@ export function create(container){
       }
       if (u.always){ u.t = (u.t + u.speed * dt / len) % 1; }
       else {
-        const open = u.b.p > .85, crossing = u.t > 0;
+        const open = u.b.p > .85 || u.b.broken, crossing = u.t > 0;
         if (!crossing && open){ u.wait -= dt; if (u.wait <= 0) u.t = 1e-4; }
         if (u.t > 0){ u.t += u.speed * dt / len; if (u.t >= 1){ u.t = 0; u.wait = 6 + rand() * 6; } }
       }
@@ -975,7 +985,7 @@ export function create(container){
         const inBox = (x0, x1, z0, z1) => (Math.abs(x) + r > x0 && Math.abs(x) - r < x1 && z + r > z0 && z - r < z1);
         if (b.solids.some(([x0, x1, z0, z1]) => inBox(x0, x1, z0, z1))) return true;
         if (b.decks.some(([x0, x1, z0, z1, under]) => m.dims.h > under && inBox(x0, x1, z0, z1))) return true;
-        if (Math.abs(z) < b.W / 2 + r){                                   // under the lifting span: check each leaf's height here
+        if (!b.broken && Math.abs(z) < b.W / 2 + r){                                   // under the lifting span: check each leaf's height here
           for (const side of [-1, 1]){
             const hx = side * b.hinge, dist = -side * (x - hx);           // distance from this leaf's hinge towards the channel
             if (dist > -r && dist < reach + r){
@@ -1026,39 +1036,70 @@ export function create(container){
   const debrisMat = std(0x2a2c33, { roughness: .8 }), emberMat = glow(0xff7a1a, 6);
   // flash lights exist from the start (intensity 0) so an explosion never forces shaders to recompile
   const flashLights = [0, 1].map(() => { const l = new THREE.PointLight(0xff8a2a, 0, 90, 1.6); scene.add(l); return l; });
+  const meteorLights = [0, 1].map(() => { const l = new THREE.PointLight(0xff7a30, 0, 120, 1.4); scene.add(l); return l; });
+  const fireLights = [0, 1, 2].map(() => { const l = new THREE.PointLight(0xff6a20, 0, 45, 1.6); scene.add(l); return l; });
   let nextFlash = 0, shake = 0;
   const explosions = [];
-  function explode(pos, size){
-    const k = clamp(size / 10, .7, 1.8), g = new THREE.Group(); g.position.copy(pos); scene.add(g);
-    // billowing fire: additive puffs that expand, rise and fade at different rates, plus a brief white flash
+  // Explosion: flash, billowing fireball with secondary blasts, streaking sparks (or a water plume),
+  // a low surge of smoke rolling outwards, tumbling debris and a tall smoke column.
+  const sparkMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  function explode(pos, size, big = false){
+    const k = clamp(size / 10, .7, big ? 2.4 : 1.8), g = new THREE.Group(); g.position.copy(pos); scene.add(g);
+    const onWater = pos.y < 2.5;
     const puff = (opacity) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); g.add(sp); return sp; };
     const flash = puff(1); flash.scale.setScalar(3 * k);
-    const fire = [];
-    for (let i = 0; i < 20; i++){
-      const sp = puff(0), a = rand() * Math.PI * 2, up = rand();
-      sp.position.set(Math.cos(a) * rand() * 1.2 * k, rand() * 1.2 * k, Math.sin(a) * rand() * 1.2 * k);
-      fire.push({ s: sp, v: V(Math.cos(a) * (2 + rand() * 4) * k, (2 + up * 6) * k, Math.sin(a) * (2 + rand() * 4) * k),
-                  delay: rand() * .15, life: .9 + rand() * .7, size: (4 + rand() * 4.5) * k });
+    const fire = [], subs = [];
+    const addFire = (off, n, delay, sizeMul, upMul) => {
+      for (let i = 0; i < n; i++){
+        const sp = puff(0), a = rand() * Math.PI * 2;
+        sp.position.set(off.x + Math.cos(a) * rand() * 1.2 * k, off.y + rand() * 1.2 * k, off.z + Math.sin(a) * rand() * 1.2 * k);
+        fire.push({ s: sp, v: V(Math.cos(a) * (2 + rand() * 4) * k, (2 + rand() * 6) * k * upMul, Math.sin(a) * (2 + rand() * 4) * k),
+                    delay: delay + rand() * .15, life: .9 + rand() * .7, size: (4 + rand() * 4.5) * k * sizeMul, spin: (rand() - .5) * 2.5 });
+      }
+    };
+    addFire(V(0, 0, 0), 22, 0, 1, 1);
+    for (let j = 0; j < (big ? 3 : 2); j++){                          // secondary blasts, a moment later and a little way off
+      const d = .12 + rand() * .4; subs.push(d);
+      addFire(V((rand() - .5) * 5 * k, rand() * 2 * k, (rand() - .5) * 5 * k), 7, d, .7, .8);
     }
+    if (big) addFire(V(0, 1, 0), 10, .05, .9, 2.6);                  // a rising column of fire
     const ring = new THREE.Mesh(fxRing, new THREE.MeshBasicMaterial({ color: 0xffe2b8, transparent: true, opacity: .6, side: THREE.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = -pos.y + .55; g.add(ring);
-    addRipple(pos.x, pos.z, 1.6 * k);
+    addRipple(pos.x, pos.z, (big ? 2 : 1.6) * k);
+    // sparks: short additive streaks (head hot, tail dim); on water, part of them is a spray plume
+    const NS = big ? 140 : 90, sGeo = new THREE.BufferGeometry(), sparks = [];
+    sGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(NS * 6), 3));
+    sGeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(NS * 6), 3));
+    for (let i = 0; i < NS; i++){
+      const a = rand() * Math.PI * 2, el = .15 + rand() * 1.2, sp = (18 + rand() * 30) * k, water = onWater && i < NS * .45;
+      sparks.push({ p: V(0, 0, 0), water, life: water ? 1.2 + rand() * .8 : .6 + rand() * .8,
+                    v: water ? V(Math.cos(a) * sp * .12, sp * (.7 + rand() * .7), Math.sin(a) * sp * .12) : V(Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp) });
+    }
+    const sLines = new THREE.LineSegments(sGeo, sparkMat); sLines.frustumCulled = false; g.add(sLines);
     const debris = [];
-    for (let i = 0; i < 22; i++){
-      const d = new THREE.Mesh(fxBox, i % 3 === 0 ? emberMat : debrisMat), sz = (.2 + rand() * .55) * k;
+    for (let i = 0; i < (big ? 30 : 22); i++){
+      const ember = i % 3 === 0, d = new THREE.Mesh(fxBox, ember ? emberMat : debrisMat);
+      const sz = ember ? .1 + rand() * .15 : (.2 + rand() * .5) * Math.min(k, 1.4);      // embers stay small, or bloom turns them into glowing squares
       d.scale.set(sz, sz * (.4 + rand() * .6), sz * (.5 + rand())); g.add(d);
       const a = rand() * Math.PI * 2, out = (4 + rand() * 9) * k;
       debris.push({ m: d, v: V(Math.cos(a) * out, (8 + rand() * 14) * k, Math.sin(a) * out), w: V(rand() * 8, rand() * 8, rand() * 8) });
     }
     const smoke = [];
-    for (let i = 0; i < 16; i++){
+    const addSmoke = (p, v, delay, grow, drag, op, life) => {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false }));
-      sp.position.set((rand() - .5) * 2 * k, rand() * k, (rand() - .5) * 2 * k); sp.scale.setScalar(2 * k); g.add(sp);
-      smoke.push({ s: sp, v: V((rand() - .5) * 2, 3 + rand() * 3, (rand() - .5) * 2), delay: rand() * .35 });
+      sp.position.copy(p); sp.scale.setScalar(2 * k); g.add(sp);
+      smoke.push({ s: sp, v, delay, grow, drag, op, life });
+    };
+    for (let i = 0; i < (big ? 22 : 16); i++)                          // the main cloud, rising
+      addSmoke(V((rand() - .5) * 2 * k, rand() * k, (rand() - .5) * 2 * k), V((rand() - .5) * 2, (3 + rand() * 3) * (big ? 1.6 : 1), (rand() - .5) * 2), rand() * .35, 3.2, .35, .75, big ? 6.5 : 4.2);
+    for (let i = 0; i < 12; i++){                                       // base surge: a low ring rolling outwards
+      const a = i / 12 * Math.PI * 2 + rand() * .3, sp = (12 + rand() * 8) * k;
+      addSmoke(V(Math.cos(a) * k, .4 - pos.y, Math.sin(a) * k), V(Math.cos(a) * sp, .6, Math.sin(a) * sp), .05 + rand() * .1, 2.6, 1.6, onWater ? .45 : .6, 3.4);
     }
+    if (onWater) smoke.slice(-12).forEach(p => p.s.material.color.setRGB(.85, .9, .95));   // spray, not dust
     const light = flashLights[nextFlash++ % flashLights.length]; light.position.copy(pos).setY(3);
-    shake = Math.max(shake, .7 * k); explosionCount++;
-    explosions.push({ g, t: 0, k, fire, flash, ring, debris, smoke, light });
+    shake = Math.max(shake, big ? 1.3 : .7 * k); explosionCount++;
+    explosions.push({ g, t: 0, k, big, fire, flash, ring, debris, smoke, light, subs, sparks, sGeo });
   }
   function updateExplosions(dt){
     for (let i = explosions.length - 1; i >= 0; i--){
@@ -1069,11 +1110,29 @@ export function create(container){
         const u = ft / f.life;
         f.s.position.addScaledVector(f.v, dt); f.v.multiplyScalar(1 - dt * 2.2); f.v.y += dt * 1.5;
         f.s.scale.setScalar(f.size * (.35 + Math.min(1, u * 2.2)));
+        f.s.material.rotation += f.spin * dt;
         f.s.material.opacity = u < 1 ? clamp(Math.min(ft * 12, 1) * (1 - u) * (1 - u * .4), 0, 1) : 0;
         f.s.material.color.setHSL(.08 - u * .05, 1, clamp(.75 - u * .45, .2, .75));
       }
       e.ring.scale.setScalar((1 + t * 16) * k); e.ring.material.opacity = clamp(.6 - t * .45, 0, .6);
-      e.light.intensity = 2600 * k * Math.exp(-t * 3.2);
+      let li = 2600 * k * Math.exp(-t * 3.2);
+      for (const d of e.subs) if (t > d) li += 1800 * k * Math.exp(-(t - d) * 7);
+      e.light.intensity = li * (.85 + Math.random() * .3);
+      const pa = e.sGeo.attributes.position.array, ca = e.sGeo.attributes.color.array;
+      for (let j = 0; j < e.sparks.length; j++){
+        const sp = e.sparks[j], o = j * 6;
+        let a = clamp(1 - t / sp.life, 0, 1);
+        if (a > 0){
+          sp.v.y -= (sp.water ? 14 : 20) * dt; sp.v.multiplyScalar(1 - (sp.water ? .5 : 1.4) * dt); sp.p.addScaledVector(sp.v, dt);
+          if (sp.p.y + e.g.position.y < 0 && sp.v.y < 0){ sp.life = 0; a = 0; }
+        }
+        const tl = sp.water ? .1 : .05;
+        pa[o] = sp.p.x; pa[o + 1] = sp.p.y; pa[o + 2] = sp.p.z;
+        pa[o + 3] = sp.p.x - sp.v.x * tl; pa[o + 4] = sp.p.y - sp.v.y * tl; pa[o + 5] = sp.p.z - sp.v.z * tl;
+        if (sp.water){ ca[o] = .9 * a; ca[o + 1] = 1 * a; ca[o + 2] = 1.1 * a; ca[o + 3] = ca[o + 4] = ca[o + 5] = .25 * a; }
+        else { ca[o] = 5 * a; ca[o + 1] = 2.8 * a; ca[o + 2] = 1.1 * a; ca[o + 3] = 1.2 * a; ca[o + 4] = .25 * a; ca[o + 5] = .04 * a; }
+      }
+      e.sGeo.attributes.position.needsUpdate = true; e.sGeo.attributes.color.needsUpdate = true;
       for (const d of e.debris){
         if (d.m.position.y + e.g.position.y > 0 || d.v.y > 0){
           d.v.y -= 16 * dt; d.m.position.addScaledVector(d.v, dt);
@@ -1082,15 +1141,220 @@ export function create(container){
       }
       for (const p of e.smoke){
         const st = t - p.delay; if (st < 0) continue;
-        p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - dt * .35);
-        p.s.scale.setScalar((2 + st * 3.2) * k); p.s.material.opacity = clamp(Math.min(st * 3, 1) * (1 - st / 4.2), 0, 1) * .75;
+        p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - dt * p.drag);
+        p.s.scale.setScalar((2 + st * p.grow) * k); p.s.material.opacity = clamp(Math.min(st * 3, 1) * (1 - st / p.life), 0, 1) * p.op;
       }
-      if (t > 4.5){
-        scene.remove(e.g); e.light.intensity = 0;
+      if (t > (e.big ? 7 : 4.5)){
+        scene.remove(e.g); e.light.intensity = 0; e.sGeo.dispose();
         [e.flash, e.ring].forEach(m => m.material.dispose()); e.fire.forEach(f => f.s.material.dispose()); e.smoke.forEach(p => p.s.material.dispose());
         explosions.splice(i, 1);
       }
     }
+  }
+
+  // ------------------------------------------------------------ alarm: red sky, meteor shower, bridges wrecked, fires
+  let alarm = false, alarmK = 0, clockA = 0, nextMeteor = 0, nextML = 0, look0 = null, look1 = null;
+  const meteors3 = [], wrecks = [], burners = [], flamePool = [], smokePool = [];
+  const tailTex = canvasTex(16, 128, (c2, w, h) => {
+    const gr = c2.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, "rgba(255,50,20,0)"); gr.addColorStop(.55, "rgba(255,120,40,.55)"); gr.addColorStop(1, "rgba(255,244,220,1)");
+    c2.fillStyle = gr; c2.fillRect(0, 0, w, h);
+  });
+  const tailGeo = new THREE.ConeGeometry(1, 1, 16, 1, true);          // apex = the end of the tail
+  const tailOuter = new THREE.MeshBasicMaterial({ map: tailTex, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+  const tailCore = tailOuter.clone(); tailCore.opacity = 1;
+  tailOuter.color.setRGB(.9, .3, .1); tailCore.color.setRGB(1.7, 1.25, .85);
+  const headMat = new THREE.SpriteMaterial({ map: fireTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  headMat.color.setRGB(2.6, 2.1, 1.5);
+  const headGlowMat = new THREE.SpriteMaterial({ map: fireTex, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  headGlowMat.color.setRGB(1, .35, .1);
+  const bx = new THREE.Box3(), c0 = V(0, 0, 0), sz = V(0, 0, 0), UP = V(0, 1, 0);
+
+  function captureLook(){
+    look0 = { fog: scene.fog.color.clone(), hs: hemi.color.clone(), hg: hemi.groundColor.clone(), ml: moonLight.color.clone(), moon: moon.material.color.clone(),
+              halo: halo.material.color.clone(), amb: wu.ambient.value.clone(), glint: wu.moonColor.value.clone(), deep: wu.deepColor.value.clone(), bloom: bloom.strength };
+    look1 = { fog: new THREE.Color(0x3a0a0c), hs: new THREE.Color(0xc0402c), hg: new THREE.Color(0x200505), ml: new THREE.Color(0xff7a52), moon: new THREE.Color(0xff3a1c),
+              halo: new THREE.Color(0xff4a2a), amb: lin(.16, .03, .025), glint: lin(.12, .03, .015), deep: lin(.006, .0012, .001), bloom: 1.05 };
+  }
+  function applyLook(k){
+    paintSky(k);
+    scene.fog.color.copy(look0.fog).lerp(look1.fog, k);
+    hemi.color.copy(look0.hs).lerp(look1.hs, k); hemi.groundColor.copy(look0.hg).lerp(look1.hg, k);
+    moonLight.color.copy(look0.ml).lerp(look1.ml, k);
+    moon.material.color.copy(look0.moon).lerp(look1.moon, k); halo.material.color.copy(look0.halo).lerp(look1.halo, k);
+    wu.ambient.value.copy(look0.amb).lerp(look1.amb, k); wu.moonColor.value.copy(look0.glint).lerp(look1.glint, k); wu.deepColor.value.copy(look0.deep).lerp(look1.deep, k);
+    bloom.strength = look0.bloom + (look1.bloom - look0.bloom) * k;
+    starMat.opacity = .8 - .5 * k;
+  }
+  // Everything a meteor can knock off a bridge: each child of the bridge group (lamps, barriers,
+  // cars, rails, portals...) and each part of the lifting leaves -- but not the fixed foundations.
+  function collectPieces(b){
+    b.pieces = [];
+    const add = o => { if (!o.isLight && !o.userData.fixed) b.pieces.push(o); };
+    for (const c of b.group.children){
+      if (c === b.leafL || c === b.leafR) c.children.forEach(add); else add(c);
+    }
+  }
+  function makePools(){
+    for (let i = 0; i < 200; i++){
+      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+      f.visible = false; f.userData = { v: V(0, 0, 0) }; scene.add(f); flamePool.push(f);
+    }
+    for (let i = 0; i < 180; i++){
+      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false }));
+      m.visible = false; m.userData = { v: V(0, 0, 0), col: new THREE.Color() }; scene.add(m); smokePool.push(m);
+    }
+    flamePool.next = smokePool.next = 0;
+  }
+  function emit(pool, p, vx, vy, vz, life, s0, s1, extra){       // ring buffer: the oldest particle is reused
+    const sp = pool[pool.next]; pool.next = (pool.next + 1) % pool.length;
+    const u = sp.userData;
+    sp.position.copy(p); u.v.set(vx, vy, vz); u.age = 0; u.life = life; u.s0 = s0; u.s1 = s1; u.spin = (rand() - .5) * 2;
+    u.op = extra && extra.op !== undefined ? extra.op : .55; if (u.col) u.col.setRGB(...(extra && extra.col || [.22, .17, .17]));
+    sp.scale.setScalar(s0); sp.visible = true;
+  }
+  function updateParticles(dt){
+    for (const sp of flamePool){
+      if (!sp.visible) continue;
+      const u = sp.userData; u.age += dt; const x = u.age / u.life;
+      if (x >= 1){ sp.visible = false; continue; }
+      sp.position.addScaledVector(u.v, dt); u.v.multiplyScalar(1 - dt * 1.5); u.v.y += dt * 2;
+      sp.scale.setScalar(u.s0 + (u.s1 - u.s0) * x); sp.material.rotation += u.spin * dt;
+      sp.material.opacity = Math.min(1, u.age * 12) * (1 - x);
+      sp.material.color.setHSL(.09 - x * .07, 1, clamp(.7 - x * .45, .15, .7));
+    }
+    for (const sp of smokePool){
+      if (!sp.visible) continue;
+      const u = sp.userData; u.age += dt; const x = u.age / u.life;
+      if (x >= 1){ sp.visible = false; continue; }
+      sp.position.addScaledVector(u.v, dt); u.v.multiplyScalar(1 - dt * .35);
+      sp.scale.setScalar(u.s0 + (u.s1 - u.s0) * Math.sqrt(x)); sp.material.rotation += u.spin * dt * .3;
+      sp.material.opacity = Math.min(1, u.age * 2.5) * (1 - x) * u.op; sp.material.color.copy(u.col);
+    }
+  }
+  function pickTarget(){
+    if (rand() < .75){
+      const b = bridges[rand() < .5 ? 0 : 1], live = (b.pieces || []).filter(o => !o.userData.broken);
+      if (live.length){ bx.setFromObject(live[Math.floor(rand() * live.length)]); if (!bx.isEmpty()) return { pos: bx.getCenter(V(0, 0, 0)), bridge: true }; }
+    }
+    return { pos: V((rand() - .5) * 200, 0, -40 + rand() * 80), bridge: false };
+  }
+  function spawnMeteor(){
+    const tgt = pickTarget();
+    const dir = V((rand() - .5) * .9, -1, (rand() - .2) * .6).normalize();   // mostly down, drifting across and towards us
+    const dist = 170 + rand() * 60, pos = tgt.pos.clone().addScaledVector(dir, -dist);
+    const grp = new THREE.Group(); grp.quaternion.setFromUnitVectors(UP, dir.clone().negate());
+    const len = 34 + rand() * 18, outer = new THREE.Mesh(tailGeo, tailOuter), core = new THREE.Mesh(tailGeo, tailCore);
+    outer.scale.set(2.6, len, 2.6); outer.position.y = len / 2; core.scale.set(.8, len * .75, .8); core.position.y = len * .375;
+    const head = new THREE.Sprite(headMat), glowS = new THREE.Sprite(headGlowMat);
+    head.scale.setScalar(4); glowS.scale.setScalar(12);
+    grp.add(outer, core, head, glowS); grp.position.copy(pos); scene.add(grp);
+    meteors3.push({ grp, pos, dir, speed: 95 + rand() * 30, dist, trav: 0, tgt, light: meteorLights[nextML++ % meteorLights.length], acc: 0, sacc: 0 });
+  }
+  function meteorImpact(m, now){
+    const p = m.pos; scene.remove(m.grp); m.light.intensity = 0;
+    explode(p.clone(), 20, true);
+    breakAt(p, 9.5);
+    if (m.tgt.bridge || rand() < .35) addBurner(p);
+    for (const bt of boats.concat(moored)){                          // boats caught underneath
+      if (!bt.visible || bt.userData.dead || bt.position.distanceTo(p) > 9) continue;
+      bt.userData.dead = true; bt.userData.respawnAt = now + 14 + rand() * 8; bt.visible = false;
+    }
+  }
+  function breakAt(p, R){
+    for (const b of bridges){
+      if (!b.pieces) continue;
+      let hit = false;
+      for (const o of b.pieces){
+        if (o.userData.broken || (b.stunt && b.stunt.car === o)) continue;
+        bx.setFromObject(o);
+        if (bx.isEmpty() || bx.distanceToPoint(p) > R) continue;
+        detach(b, o, p); hit = true;
+      }
+      if (hit){ b.broken = true; b.decks = []; cleanupStunt(b); }
+      for (const o of b.group.children){
+        if (!o.userData.fixed || o.userData.charred) continue;
+        bx.setFromObject(o); if (bx.distanceToPoint(p) < R + 3) char(o);
+      }
+    }
+  }
+  function char(o){                                                   // scorch a foundation that the blast reached
+    o.userData.charred = true;
+    o.traverse(m => {
+      if (!m.isMesh) return;
+      const burn = x => { const n = x.clone(); if (n.color) n.color.multiplyScalar(.3); if (n.emissive) n.emissiveIntensity *= .35; return n; };
+      m.material = Array.isArray(m.material) ? m.material.map(burn) : burn(m.material);
+    });
+  }
+  function detach(b, o, p){
+    o.userData.broken = true;
+    const ci = b.cars.indexOf(o); if (ci >= 0) b.cars.splice(ci, 1);
+    bx.getCenter(c0); bx.getSize(sz);
+    const size = Math.max(sz.x, sz.y, sz.z), k = 1 / (1 + size / 10);
+    const pivot = new THREE.Group(); pivot.position.copy(c0); scene.add(pivot); pivot.attach(o);   // spin about the piece's own centre
+    o.traverse(c => { if (c.isLight) c.intensity = 0; });            // lamps go out (the light objects stay, so no shader rebuild)
+    const out = c0.clone().sub(p); out.y = 0;
+    if (out.lengthSq() < 1e-4) out.set(rand() - .5, 0, rand() - .5);
+    out.normalize().multiplyScalar((9 + rand() * 14) * k).setY((8 + rand() * 12) * k);
+    wrecks.push({ pivot, v: out, w: V(rand() - .5, rand() - .5, rand() - .5).multiplyScalar(10 * (k + .15)), size, wet: false, done: false, smoke: 0 });
+  }
+  function updateWrecks(dt){
+    for (const w of wrecks){
+      if (w.done) continue;
+      const pv = w.pivot;
+      if (!w.wet){
+        w.v.y -= 22 * dt;
+        w.smoke += dt;
+        if (w.smoke > .07){ w.smoke = 0; emit(smokePool, pv.position, 0, 1, 0, 2.2, 1.5, 6, { op: .45 }); emit(flamePool, pv.position, 0, 0, 0, .35, 1.2 + w.size * .08, .5); }
+        if (pv.position.y < 0){
+          w.wet = true;
+          addRipple(pv.position.x, pv.position.z, Math.min(1.6, .5 + w.size * .06));
+          for (let i = 0; i < 10; i++) emit(smokePool, pv.position, (rand() - .5) * 6, 5 + rand() * 7, (rand() - .5) * 6, 1.3, 1, 5 + w.size * .2, { op: .6, col: [.85, .9, .95] });
+        }
+      } else {
+        w.v.multiplyScalar(Math.exp(-dt * 3)); w.w.multiplyScalar(Math.exp(-dt * 1.2));
+        w.v.y = Math.min(w.v.y, 0) - (1 + w.size * .05) * dt * 3;
+      }
+      pv.position.addScaledVector(w.v, dt);
+      pv.rotation.x += w.w.x * dt; pv.rotation.y += w.w.y * dt; pv.rotation.z += w.w.z * dt;
+      if (pv.position.y < -(w.size + 6)) w.done = true;
+    }
+  }
+  function addBurner(p){
+    if (burners.length >= 12) return;
+    // burn on whatever is left standing nearby, or on the water as a burning slick
+    let at = V(p.x, .25, p.z), best = 14;
+    for (const b of bridges) for (const o of b.group.children){
+      if (!o.userData.fixed) continue;
+      bx.setFromObject(o); const d = bx.distanceToPoint(p);
+      if (d < best){ best = d; at = V(clamp(p.x, bx.min.x, bx.max.x), bx.max.y, clamp(p.z, bx.min.z, bx.max.z)); }
+    }
+    burners.push({ pos: at, acc: 0, sacc: 0, light: fireLights[burners.length] || null, seed: rand() * 10, r: 1 + rand() * 1.5 });
+  }
+  const jit = V(0, 0, 0);
+  function updateBurners(dt, now){
+    for (const b of burners){
+      b.acc += dt; b.sacc += dt;
+      while (b.acc > .03){ b.acc -= .03; jit.set((rand() - .5) * 2 * b.r, 0, (rand() - .5) * 2 * b.r).add(b.pos); emit(flamePool, jit, (rand() - .5), 3 + rand() * 3, (rand() - .5), .6 + rand() * .4, 2.6 + rand(), .8); }
+      while (b.sacc > .16){ b.sacc -= .16; jit.copy(b.pos).y += 2.5; emit(smokePool, jit, .8 + rand() * .6, 2.4 + rand(), (rand() - .5) * .6, 5, 2.5, 15, { op: .5 }); }
+      if (b.light){ b.light.position.copy(b.pos).y += 2; b.light.intensity = 260 + 120 * Math.sin(now * 17 + b.seed) + 80 * Math.sin(now * 29 + b.seed * 2); }
+    }
+  }
+  function updateAlarm(dt, now){
+    if (alarmK < 1){ alarmK = Math.min(1, alarmK + dt / 3); applyLook(alarmK); }
+    clockA += dt;
+    if (clockA >= nextMeteor && meteors3.length < 5){ spawnMeteor(); nextMeteor = clockA + .8 + rand() * 1.2; }
+    for (let i = meteors3.length - 1; i >= 0; i--){
+      const m = meteors3[i], step = m.speed * dt;
+      m.trav += step; m.pos.addScaledVector(m.dir, step);
+      if (m.trav >= m.dist){ m.pos.copy(m.tgt.pos); meteors3.splice(i, 1); meteorImpact(m, now); continue; }
+      m.grp.position.copy(m.pos);
+      m.light.position.copy(m.pos); m.light.intensity = 350;
+      m.acc += dt; m.sacc += dt;
+      while (m.acc > .02){ m.acc -= .02; emit(flamePool, m.pos, (rand() - .5) * 3, (rand() - .5) * 3, (rand() - .5) * 3, .45, 3.5, 7); }
+      while (m.sacc > .05){ m.sacc -= .05; emit(smokePool, m.pos, (rand() - .5), .6, (rand() - .5), 3.2, 2.5, 11, { op: .4 }); }
+    }
+    updateWrecks(dt); updateBurners(dt, now); updateParticles(dt);
   }
 
   // ------------------------------------------------------------ the last-minute car
@@ -1179,6 +1443,7 @@ export function create(container){
     b.leafL.rotation.z = a; b.leafR.rotation.z = -a;
     // hydraulic rams follow the leaf: barrel fixed at the pier, piston runs to the leaf
     for (const r of b.rams){
+      if (r.barrel.userData.broken || r.piston.userData.broken) continue;
       r.leaf.updateMatrix();
       wB.copy(r.attach).applyMatrix4(r.leaf.matrix);          // attachment point in bridge coordinates
       const d = wB.clone().sub(r.anchor), len = d.length(), barrelLen = Math.min(3.2, len * .6);
@@ -1191,6 +1456,7 @@ export function create(container){
     const k = b.barrierP * b.barrierP * (3 - 2 * b.barrierP);
     const blink = Math.floor(now * 2.4) % 2 === 0;
     for (const bar of b.barriers){
+      if (bar.userData.broken) continue;
       bar.rotation.x = bar.userData.up * (1 - k);
       bar.userData.lights.forEach((l, i) => { l.material.emissive.setHex(b.barrierP > .02 && ((i % 2 === 0) === blink) ? 0xff2d40 : 0x3a1016); l.material.emissiveIntensity = b.barrierP > .02 ? 6 : 1; });
     }
@@ -1201,10 +1467,11 @@ export function create(container){
   // ------------------------------------------------------------ render loop
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(512, 128), .85, .55, .72));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(512, 128), .85, .55, .72);
+  composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
-  let running = false, raf = 0, last = 0, prevNow = 0, visible = true, active = false;
+  let running = false, raf = 0, last = 0, prevNow = 0, visible = true, active = false, camY = 12.5;
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   function resize(){
     const w = container.clientWidth || 800, h = container.clientHeight || 200;
@@ -1213,7 +1480,8 @@ export function create(container){
     camera.aspect = w / h;
     const wide = camera.aspect > 2.2;
     camera.fov = wide ? 21 : 38;
-    camera.position.set(0, wide ? 12.5 : 22, wide ? 100 : 135);
+    camY = wide ? 12.5 : 22;
+    camera.position.set(0, camY, wide ? 100 : 135);
     camera.lookAt(0, 5, -8);
     camera.updateProjectionMatrix();
   }
@@ -1226,7 +1494,9 @@ export function create(container){
     const realDt = Math.min(.25, now - (prevNow || now)); prevNow = now;
     for (const b of bridges){ updateBridge(b, now, dt); updateTraffic(b, realDt); updateStunt(b, realDt, now); }
     updateBoats(dt, now); updateExplosions(dt);
-    if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y = 12.5 + (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
+    if (alarm) updateAlarm(dt, now);
+    camera.position.y = camY;
+    if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y += (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
     composer.render();
   }
   function sync(){
@@ -1241,6 +1511,17 @@ export function create(container){
 
   return {
     setActive(on){ active = on; if (on) resize(); sync(); },
+    // alarm mode (stays on until the page reloads): red sky, a meteor shower, the bridges wrecked
+    setAlarm(){
+      if (alarm) return;
+      alarm = true; captureLook(); makePools();
+      for (const b of bridges) collectPieces(b);
+      nextMeteor = clockA + .6;
+    },
+    _alarm(){
+      return { k: +alarmK.toFixed(2), meteors: meteors3.length, wrecks: wrecks.length, burners: burners.length, explosions: explosionCount,
+               broken: bridges.map(b => `${(b.pieces || []).filter(o => o.userData.broken).length}/${(b.pieces || []).length}`) };
+    },
     _stats(){
       const onRaised = bridges.map(b => b.p > .02 ? b.cars.filter(c => onSpan(b, c.userData.x)).length : 0);
       return { explosions: explosionCount, carsOnRaisedSpan: onRaised, p: bridges.map(b => +b.p.toFixed(3)) };
@@ -1260,7 +1541,7 @@ export function create(container){
         const want = states[b.key] ? 1 : 0;
         if (want !== b.target){
           b.from = progressAt(b, now); b.target = want; b.t0 = now;
-          if (want === 1) startStunt(b, now); else cleanupStunt(b);
+          if (want === 1 && !b.broken) startStunt(b, now); else cleanupStunt(b);
         }
       }
       const c = STATE_COLORS[states.color] ?? STATE_COLORS.OTHER;

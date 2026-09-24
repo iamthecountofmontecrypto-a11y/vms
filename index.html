@@ -664,6 +664,45 @@
     opacity:0; transition:opacity .12s ease;
   }
   .tip.show{ opacity:1; }
+
+  /* ---------- sign-message timeline: pick a window and scroll back through 14 days ---------- */
+  .tl-controls{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:2px 0 12px; font-size:11px; color:var(--text-dim); }
+  .tl-controls button{ font-family:inherit; font-size:11px; color:var(--text); background:var(--panel); border:1px solid var(--panel-border); border-radius:4px; padding:4px 9px; cursor:pointer; }
+  .tl-controls button[aria-pressed="true"]{ border-color:var(--teal); color:var(--teal); }
+  .tl-controls button:disabled{ opacity:.4; cursor:default; }
+  .tl-controls .tl-group{ display:flex; gap:4px; flex-wrap:wrap; }
+  .tl-controls input[type=range]{ flex:1 1 160px; min-width:120px; accent-color:var(--teal); }
+  .tl-range{ font-variant-numeric:tabular-nums; color:var(--text); }
+  #msgRows .timeline{ touch-action:pan-y; cursor:grab; user-select:none; }
+  #msgRows.dragging .timeline, #msgRows.dragging .timeline div{ cursor:grabbing; }
+  html[data-view="aurora"] #msgRows:not(.at-now) .timeline::after{ display:none; }
+  html[data-view="aurora"] .tl-controls button{ border-radius:999px; background:rgba(255,255,255,0.05); }
+
+  /* ---------- over-limit alarm: the page pulses red until it is reloaded ---------- */
+  #alarmFlash, #alarmBanner{ display:none; }
+  html.alarm #alarmFlash{ display:block; position:fixed; inset:0; z-index:65; pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(255,0,30,.06) 35%, rgba(255,0,30,.5) 100%);
+    box-shadow:inset 0 0 0 5px rgba(255,40,60,.95), inset 0 0 80px rgba(255,20,40,.7);
+    animation:alarmPulse 1.1s ease-in-out infinite; }
+  html.alarm #alarmBanner{ display:flex; position:fixed; left:50%; top:12px; transform:translateX(-50%); z-index:70; align-items:center; gap:12px;
+    width:max-content; max-width:calc(100vw - 24px); padding:10px 14px 10px 16px; border-radius:10px; border:1px solid #ff4d5e; color:#fff;
+    font-size:13px; font-weight:600; line-height:1.35; box-shadow:0 0 34px rgba(255,40,60,.65); animation:alarmBanner 1.1s ease-in-out infinite; }
+  html.alarm #alarmBanner button{ flex:none; font:inherit; font-size:12px; color:#fff; background:#ff2d45; border:1px solid #ffb3bb; border-radius:6px; padding:6px 10px; cursor:pointer; }
+  @keyframes alarmPulse{ 0%,100%{ opacity:.2; } 50%{ opacity:1; } }
+  @keyframes alarmBanner{ 0%,100%{ background:rgba(110,0,14,.94); } 50%{ background:rgba(215,12,38,.96); } }
+  html.alarm header h1 .accent{ color:#ff4d5e; }
+  @media (prefers-reduced-motion: reduce){ html.alarm #alarmFlash, html.alarm #alarmBanner{ animation-duration:3s; } }
+  /* red sky behind the animations (the page sky is repainted red by script) */
+  html.alarm #heroScene{ background:linear-gradient(to bottom, rgba(255,36,40,.34), rgba(150,0,20,.2) 62%, rgba(70,0,10,.12)); transition:background 3s ease; }
+  html.alarm #tsWater stop:first-child, html.alarm #pbWater stop:first-child{ stop-color:#5c0d15; }
+  html.alarm #tsWater stop:last-child, html.alarm #pbWater stop:last-child{ stop-color:#180306; }
+  .bloodmoon{ opacity:0; transition:opacity 3s ease; }
+  html.alarm .bloodmoon{ opacity:.85; }
+  html.alarm .moonpath .glitter{ stroke:#ff6a4a; }
+  #heroScene{ position:relative; }
+  #meteorFx{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
+  html.alarm #meteorFx{ display:block; }
+  .bscene.wrecked .traffic *, .bscene.wrecked .queue *{ animation-play-state:paused !important; }
 </style>
 </head>
 <body>
@@ -671,6 +710,8 @@
 <canvas id="auroraCanvas" aria-hidden="true"></canvas>
 <canvas id="sky" aria-hidden="true"></canvas>
 <div id="spot" aria-hidden="true"></div>
+<div id="alarmFlash" aria-hidden="true"></div>
+<div id="alarmBanner" role="alert"><span id="alarmText"></span><button id="alarmReload">Reload to clear</button></div>
 
 <header>
   <div>
@@ -721,6 +762,7 @@
       <div class="lg-item" data-state="TWIN" style="color:var(--rose)"><i style="background:var(--rose)"></i><span>Lift Twin Sails Bridge</span><span class="lg-dur"></span></div>
       <div class="lg-note" id="legendNote"></div>
       <div class="lg-preview">Preview a lift: <button class="linkish" data-preview="POOLE">Poole</button> · <button class="linkish" data-preview="TWIN">Twin Sails</button></div>
+      <div class="lg-preview">Preview the over-limit alarm: <button class="linkish" id="alarmPreview">Meteor shower</button> <span class="mode-note">(reload to clear)</span></div>
       <div class="lg-preview">Bridges: <button class="linkish mode-btn" data-mode="2d" aria-pressed="true">2D</button> · <button class="linkish mode-btn" data-mode="3d" aria-pressed="false">3D</button> <span class="mode-note" id="modeNote"></span></div>
     </aside>
   </section>
@@ -747,6 +789,7 @@
         <linearGradient id="searchBeam" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e9f6ff" stop-opacity=".45"/><stop offset="1" stop-color="#e9f6ff" stop-opacity="0"/></linearGradient>
         <linearGradient id="droneBeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fe3ff" stop-opacity=".28"/><stop offset="1" stop-color="#7fe3ff" stop-opacity="0"/></linearGradient>
         <radialGradient id="moonGrad" cx=".4" cy=".38" r=".7"><stop offset="0" stop-color="#fffef6"/><stop offset=".6" stop-color="#f3eed8"/><stop offset="1" stop-color="#d8d0b6"/></radialGradient>
+        <radialGradient id="bloodHalo"><stop offset="0" stop-color="#ff3a20" stop-opacity=".5"/><stop offset=".4" stop-color="#ff3a20" stop-opacity=".16"/><stop offset="1" stop-color="#ff3a20" stop-opacity="0"/></radialGradient>
         <radialGradient id="moonHalo"><stop offset="0" stop-color="#f5f0dc" stop-opacity=".32"/><stop offset=".35" stop-color="#f5f0dc" stop-opacity=".1"/><stop offset="1" stop-color="#f5f0dc" stop-opacity="0"/></radialGradient>
         <linearGradient id="mistGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8c8e6" stop-opacity="0"/><stop offset=".55" stop-color="#b8c8e6" stop-opacity=".09"/><stop offset="1" stop-color="#b8c8e6" stop-opacity="0"/></linearGradient>
         <linearGradient id="upLight" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3c4" stop-opacity=".28"/><stop offset="1" stop-color="#fff3c4" stop-opacity="0"/></linearGradient>
@@ -879,6 +922,8 @@
         <!-- moon and its halo -->
         <circle cx="300" cy="54" r="46" fill="url(#moonHalo)"/>
         <circle cx="300" cy="54" r="11" fill="url(#moonGrad)"/>
+        <circle class="bloodmoon" cx="300" cy="54" r="46" fill="url(#bloodHalo)"/>
+        <circle class="bloodmoon" cx="300" cy="54" r="11" fill="#d8261a"/>
         <g fill="#b9b19a" opacity=".22"><circle cx="296" cy="51" r="2.2"/><circle cx="303.5" cy="57.5" r="1.5"/><circle cx="302" cy="49" r="1"/></g>
         <g class="gulls" stroke="#cfd8e6" stroke-width="1" fill="none" stroke-linecap="round">
           <g class="gull-path" style="animation-duration:46s"><g transform="translate(0,40)"><path class="gull" d="M-6 0 Q-3 -3.5 0 0 Q3 -3.5 6 0"/></g></g>
@@ -1034,6 +1079,15 @@
       <span><i class="sw st-TWIN"></i>Lift Twin Sails Bridge</span>
       <span><i class="sw st-UNKNOWN"></i>Unrecognised message</span>
       <span><i class="sw st-NODATA"></i>No data</span>
+    </div>
+    <div class="tl-controls" id="tlControls">
+      <span>Show</span>
+      <span class="tl-group"><button data-span="12">12 h</button><button data-span="24">24 h</button><button data-span="72">3 days</button><button data-span="168">7 days</button><button data-span="336">14 days</button></span>
+      <button id="tlBack" title="Go back in time">&lsaquo; Earlier</button>
+      <input type="range" id="tlSlider" min="0" max="312" step="0.25" value="312" aria-label="Scroll the sign timeline back through the last 14 days">
+      <button id="tlFwd" title="Go forward in time">Later &rsaquo;</button>
+      <button id="tlLatest">Latest</button>
+      <span class="tl-range" id="tlRange"></span>
     </div>
     <div id="msgRows"></div>
     <div class="tl-axis" id="tlAxis"></div>
@@ -1315,11 +1369,36 @@ function renderEmpty(msg){
   document.getElementById("grid").innerHTML = `<div class="empty-state"><h2>${msg}</h2></div>`;
 }
 
+// ---------- over-limit alarm ----------
+// Once any sign's lift message has been on past the limit, the page pulses red, the sky turns red
+// and a meteor shower wrecks the bridges (2D and 3D). It stays that way until the page is reloaded.
+let alarmOn = false, alarmPreview = false;
+const PAGE_TITLE = document.title;
+function setAlarm(text){
+  const t = document.getElementById("alarmText");
+  if (t.textContent !== text) t.textContent = text;
+  if (alarmOn) return;
+  alarmOn = true;
+  document.documentElement.classList.add("alarm");
+  let flip = false;
+  setInterval(() => { flip = !flip; document.title = flip ? "⚠ LIFT OVER LIMIT" : PAGE_TITLE; }, 1000);
+  Sky.setAlarm();
+  Meteors2D.start();
+  if (window.__alarm3d) window.__alarm3d();
+}
+document.getElementById("alarmReload").addEventListener("click", () => location.reload());
+document.getElementById("alarmPreview").addEventListener("click", () => {
+  if (!alarmOn) alarmPreview = true;
+  setAlarm("Preview: this is what happens when a lift message stays on past the limit.");
+});
+
 // ---------- sign messages (sign_states.json, written by vms_fault_monitor.py) ----------
 // Each run is [state, start, end|null, lowerBound, gapAfter]. end=null means
 // it's what the sign shows now. lowerBound = the run may have started
 // earlier than the monitor can see (monitor start or missing data).
-const TIMELINE_HOURS = 24;
+const TL_MAX_HOURS = 14 * 24;        // how far back the bars can go (the monitor exports 14 days)
+let tlSpanH = 24, tlBackH = 0;        // window width, and how far its right edge is before now (0 = latest)
+let tlRuns = [];                      // per sign row: its runs, kept so panning only redraws the bars
 let signStates = null;
 
 function stateClass(state){ return state.startsWith("UNKNOWN:") ? "st-UNKNOWN" : `st-${state}`; }
@@ -1342,7 +1421,6 @@ function renderSignMessages(){
   if (!signStates) return;
   const now = new Date();
   const limitMs = signStates.stuck_alert_minutes * 60000;
-  const tlStart = new Date(now - TIMELINE_HOURS * 3600000);
   document.getElementById("signMessages").style.display = "block";
   document.getElementById("msgSub").textContent =
     `What each sign has been displaying, from its last 10 messages checked every cycle. ` +
@@ -1351,7 +1429,8 @@ function renderSignMessages(){
 
   const rowsEl = document.getElementById("msgRows");
   rowsEl.innerHTML = "";
-  const allRuns = [];
+  const allRuns = [], stuckNow = [];
+  tlRuns = [];
 
   signStates.signs.forEach(sign => {
     const runs = sign.runs.map(([state, s, e, lb, gap]) => ({
@@ -1362,16 +1441,8 @@ function renderSignMessages(){
     const curIsLive = cur && !cur.end;
     const curMs = curIsLive ? Math.max(0, now - cur.start) : 0;
     const stuck = curIsLive && isLift(cur.state) && curMs >= limitMs;
-
-    const segs = runs.map(r => {
-      const a = Math.max(r.start, tlStart), b = Math.min(r.end || now, now);
-      if (b <= a) return "";
-      const left = 100 * (a - tlStart) / (now - tlStart), width = 100 * (b - a) / (now - tlStart);
-      return `<div class="${stateClass(r.state)}" style="left:${left}%;width:${width}%"
-        data-run="${escapeHtml(runKey(r))}" tabindex="0" role="button"
-        data-tip="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'} · click to see it in the history"
-        aria-label="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'}"></div>`;
-    }).join("");
+    if (stuck) stuckNow.push({ sign: sign.name, state: cur.state, ms: curMs, lowerBound: cur.lowerBound });
+    tlRuns.push(runs);
 
     const row = document.createElement("div");
     row.className = `msg-row${stuck ? " stuck" : ""}`;
@@ -1382,14 +1453,50 @@ function renderSignMessages(){
           <span class="since">for ${cur.lowerBound ? "at least " : ""}${fmtDuration(curMs)} (since ${fmtTime(cur.start)})</span>`
           : `<span class="since">No current data</span>`}
       </div>
-      <div class="timeline">${segs}</div>`;
+      <div class="timeline"></div>`;
     rowsEl.appendChild(row);
   });
+  renderBars(now);
 
+  if (stuckNow.length){
+    const w = stuckNow.reduce((a, b) => a.ms > b.ms ? a : b), names = stuckNow.map(c => c.sign.replace(/^VMS /, "")).join(", ");
+    setAlarm(`${stateText(w.state)} has been on for ${w.lowerBound ? "at least " : ""}${fmtDuration(w.ms)} (${names}) — over the ${signStates.stuck_alert_minutes}-minute limit.`);
+  } else if (alarmOn && !alarmPreview){
+    setAlarm(`A lift message went over the ${signStates.stuck_alert_minutes}-minute limit; it has since changed.`);
+  }
+
+  renderHistory(allRuns, now, limitMs);
+  renderHero();
+}
+
+// The coloured bars for the current window [end - span, end]; the window can be scrolled back
+// through the 14 days the monitor exports. Redrawn on its own while panning.
+function renderBars(now = new Date()){
+  const rowsEl = document.getElementById("msgRows");
+  const maxBack = TL_MAX_HOURS - tlSpanH;
+  tlBackH = Math.min(Math.max(0, tlBackH), maxBack);
+  const tlEnd = new Date(now - tlBackH * 3600000), tlStart = new Date(tlEnd - tlSpanH * 3600000), span = tlEnd - tlStart;
+  rowsEl.querySelectorAll(".timeline").forEach((el, i) => {
+    el.innerHTML = (tlRuns[i] || []).map(r => {
+      const a = Math.max(r.start, tlStart), b = Math.min(r.end || now, tlEnd);
+      if (b <= a) return "";
+      const left = 100 * (a - tlStart) / span, width = 100 * (b - a) / span;
+      return `<div class="${stateClass(r.state)}" style="left:${left}%;width:${width}%"
+        data-run="${escapeHtml(runKey(r))}" tabindex="0" role="button"
+        data-tip="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'} · click to see it in the history"
+        aria-label="${escapeHtml(stateText(r.state))}: ${fmtTime(r.start)} – ${r.end ? fmtTime(r.end) : 'now'}"></div>`;
+    }).join("");
+  });
+  rowsEl.classList.toggle("at-now", tlBackH === 0);
+
+  const multiDay = tlSpanH > 24 || tlBackH > 0;
+  const label = t => multiDay
+    ? `${t.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })} ${t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+    : t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   const axis = [];
   for (let i = 0; i <= 4; i++){
-    const t = new Date(tlStart.getTime() + i * (now - tlStart) / 4);
-    axis.push(`<span>${i === 4 ? "now" : t.toLocaleTimeString(undefined, {hour:"2-digit", minute:"2-digit"})}</span>`);
+    const t = new Date(tlStart.getTime() + i * span / 4);
+    axis.push(`<span>${i === 4 && tlBackH === 0 ? "now" : label(t)}</span>`);
   }
   const axisEl = document.getElementById("tlAxis");
   axisEl.innerHTML = axis.join("");
@@ -1401,9 +1508,57 @@ function renderSignMessages(){
     axisEl.style.marginRight = `${base.right - box.right}px`;
   }
 
-  renderHistory(allRuns, now, limitMs);
-  renderHero();
+  // controls
+  document.querySelectorAll("#tlControls [data-span]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.span === tlSpanH)));
+  const slider = document.getElementById("tlSlider");
+  slider.max = String(maxBack); slider.value = String(maxBack - tlBackH);
+  slider.disabled = maxBack <= 0;
+  document.getElementById("tlBack").disabled = tlBackH >= maxBack;
+  document.getElementById("tlFwd").disabled = document.getElementById("tlLatest").disabled = tlBackH === 0;
+  const when = t => `${t.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} ${t.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  document.getElementById("tlRange").textContent = `${when(tlStart)} – ${tlBackH === 0 ? "now" : when(tlEnd)}`;
 }
+
+// window buttons, slider, Earlier/Later/Latest, drag and horizontal scroll on the bars
+(function(){
+  let pending = false;
+  const redraw = () => { if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; if (signStates) renderBars(); }); };
+  const setBack = h => { tlBackH = Math.min(Math.max(0, h), TL_MAX_HOURS - tlSpanH); redraw(); };
+  document.querySelectorAll("#tlControls [data-span]").forEach(b => b.addEventListener("click", () => { tlSpanH = +b.dataset.span; setBack(tlBackH); }));
+  document.getElementById("tlBack").addEventListener("click", () => setBack(tlBackH + tlSpanH / 2));
+  document.getElementById("tlFwd").addEventListener("click", () => setBack(tlBackH - tlSpanH / 2));
+  document.getElementById("tlLatest").addEventListener("click", () => setBack(0));
+  document.getElementById("tlSlider").addEventListener("input", e => setBack(TL_MAX_HOURS - tlSpanH - +e.target.value));
+  const rows = document.getElementById("msgRows");
+  let drag = null;
+  rows.addEventListener("pointerdown", e => {
+    const tl = e.target.closest(".timeline");
+    if (!tl || e.button !== 0) return;
+    drag = { x: e.clientX, back: tlBackH, w: tl.getBoundingClientRect().width, moved: false, id: e.pointerId };
+  });
+  rows.addEventListener("pointermove", e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 5) return;
+    if (!drag.moved){ drag.moved = true; rows.classList.add("dragging"); try { rows.setPointerCapture(e.pointerId); } catch (err) {} }
+    setBack(drag.back + dx / drag.w * tlSpanH);          // drag right = further back in time
+  });
+  const end = e => {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    if (drag.moved){ rows.classList.remove("dragging"); tlSuppressClick = true; setTimeout(() => { tlSuppressClick = false; }, 0); }
+    drag = null;
+  };
+  rows.addEventListener("pointerup", end); rows.addEventListener("pointercancel", end);
+  rows.addEventListener("wheel", e => {
+    if (!e.target.closest(".timeline")) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+    if (!d) return;
+    e.preventDefault();
+    const w = e.target.closest(".timeline").getBoundingClientRect().width;
+    setBack(tlBackH - d / w * tlSpanH);                    // scroll right = later
+  }, { passive: false });
+})();
+var tlSuppressClick = false;
 
 function renderHistory(allRuns, now, limitMs){
   const fSign = document.getElementById("fSign");
@@ -1464,6 +1619,7 @@ function jumpToRun(key){
 
 const msgRows = document.getElementById("msgRows");
 msgRows.addEventListener("click", e => {
+  if (tlSuppressClick) return;
   const seg = e.target.closest("[data-run]");
   if (seg) jumpToRun(seg.dataset.run);
 });
@@ -1618,6 +1774,223 @@ document.querySelectorAll("[data-preview]").forEach(btn => btn.addEventListener(
 }));
 renderBridges(...lastBridgeArgs);
 
+// ---------- alarm: a meteor shower that smashes the 2D bridges ----------
+// Drawn on a canvas over both scenes. Meteors aim at bridge parts that are still standing; each
+// hit throws the nearby parts (and their reflections) up and into the water, and leaves a fire.
+const Meteors2D = (() => {
+  const host = document.getElementById("heroScene");
+  const cv = document.createElement("canvas"); cv.id = "meteorFx"; cv.setAttribute("aria-hidden", "true"); host.appendChild(cv);
+  const g = cv.getContext("2d");
+  const scenes = [{ svg: document.getElementById("bridgeTwin"), water: 216 }, { svg: document.getElementById("bridgePoole"), water: 212 }];
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const R = (a, b) => a + Math.random() * (b - a);
+  let running = false, last = 0, W = 0, H = 0, nextAt = 0, clock = 0;
+  const meteors = [], parts = [], burners = [];
+
+  function measure(){
+    const hb = host.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = hb.width; H = hb.height;
+    const cw = Math.round(W * dpr), ch = Math.round(H * dpr);
+    if (cv.width !== cw || cv.height !== ch){ cv.width = cw; cv.height = ch; }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    scenes.forEach(s => { const r = s.svg.getBoundingClientRect(); s.x = r.left - hb.left; s.y = r.top - hb.top; s.k = r.width / 600; });
+  }
+  const toCv = (s, x, y) => [s.x + x * s.k, s.y + y * s.k];
+  function box(s, el){
+    const r = el.getBoundingClientRect(), sr = s.svg.getBoundingClientRect();
+    return { x: (r.left - sr.left) / s.k, y: (r.top - sr.top) / s.k, w: r.width / s.k, h: r.height / s.k };
+  }
+  const standing = s => [...s.svg.querySelectorAll(".frag")].filter(f => !f.dataset.gone && !f.closest(".reflection"));
+
+  function pickTarget(){
+    const s = scenes[Math.random() < .5 ? 0 : 1];
+    if (Math.random() < .78){
+      const live = standing(s).map(f => ({ f, b: box(s, f) })).filter(o => o.b.w > 0 && o.b.h > 0);
+      if (live.length){ const { b } = live[Math.floor(Math.random() * live.length)]; return { s, x: b.x + b.w / 2, y: b.y + b.h / 2, bridge: true }; }
+    }
+    return { s, x: R(30, 570), y: s.water + R(3, 30), bridge: false };
+  }
+  function spawn(){
+    const tgt = pickTarget(), [tx, ty] = toCv(tgt.s, tgt.x, tgt.y);
+    let dx = R(-.6, .6), dy = 1; const l = Math.hypot(dx, dy); dx /= l; dy /= l;
+    const back = (ty + 40) / dy;
+    meteors.push({ x: tx - dx * back, y: -40, dx, dy, dist: back, trav: 0, sp: R(420, 560) + H * .7, size: R(.8, 1.35), tgt, sparkAcc: 0 });
+  }
+
+  // ---- particles
+  function explosion(x, y, k, wy, onWater){
+    parts.push({ t: "flash", x, y, r: 95 * k, life: .3, age: 0 });
+    parts.push({ t: "ring", x, y, R: 120 * k, life: .6, age: 0, k });
+    parts.push({ t: "ring", x, y, R: 70 * k, life: .4, age: -.06, k });
+    for (let i = 0; i < 18; i++) parts.push({ t: "fire", x: x + R(-8, 8) * k, y: y + R(-8, 8) * k, vx: R(-80, 80) * k, vy: R(-100, 10) * k, r0: R(8, 15) * k, r1: R(24, 44) * k, life: R(.6, 1.15), age: -R(0, .12) });
+    for (let j = 0; j < 2; j++){                   // secondary blasts
+      const ox = R(-28, 28) * k, oy = R(-20, 6) * k, d = R(.12, .42);
+      parts.push({ t: "flash", x: x + ox, y: y + oy, r: 55 * k, life: .22, age: -d });
+      for (let i = 0; i < 7; i++) parts.push({ t: "fire", x: x + ox, y: y + oy, vx: R(-50, 50) * k, vy: R(-70, 0) * k, r0: R(6, 10) * k, r1: R(16, 28) * k, life: R(.5, .85), age: -d });
+    }
+    for (let i = 0; i < 50; i++){ const a = R(0, Math.PI * 2), sp = R(160, 440) * k; parts.push({ t: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 140 * k, life: R(.5, 1.25), age: 0, wy }); }
+    for (let i = 0; i < 14; i++) parts.push({ t: "debris", x, y, vx: R(-170, 170) * k, vy: R(-280, -80) * k, rot: R(0, 6), vr: R(-12, 12), s: R(2, 5.5) * k, life: 3, age: 0, wy });
+    for (let i = 0; i < 14; i++) parts.push({ t: "smoke", x: x + R(-12, 12) * k, y: y + R(-12, 4) * k, vx: R(-22, 22) * k, vy: R(-50, -18) * k, r0: R(10, 18) * k, r1: R(45, 80) * k, life: R(2.5, 4.2), age: -R(.1, .6) });
+    if (onWater) for (let i = 0; i < 30; i++) parts.push({ t: "drop", x: x + R(-10, 10) * k, y, vx: R(-70, 70) * k, vy: R(-340, -140) * k, life: R(.8, 1.4), age: 0, wy: y });
+  }
+  function splash(x, wy, k){
+    for (let i = 0; i < 12; i++) parts.push({ t: "drop", x: x + R(-6, 6) * k, y: wy, vx: R(-40, 40) * k, vy: R(-160, -60) * k, life: R(.6, 1), age: 0, wy });
+    parts.push({ t: "ring", x, y: wy, R: 26 * k, life: .7, age: 0, k: k * .5, flat: true });
+  }
+
+  // ---- a hit: blast, then knock every standing part within reach into the water
+  function impact(tgt){
+    const s = tgt.s, [cx, cy] = toCv(s, tgt.x, tgt.y), wy = toCv(s, 0, s.water)[1];
+    explosion(cx, cy, s.k * (tgt.bridge ? 1.15 : .9), wy, !tgt.bridge);
+    if (tgt.bridge){
+      s.svg.classList.add("wrecked");
+      standing(s).forEach(f => {
+        const b = box(s, f);
+        const nx = Math.max(b.x, Math.min(tgt.x, b.x + b.w)), ny = Math.max(b.y, Math.min(tgt.y, b.y + b.h));
+        if (Math.hypot(nx - tgt.x, ny - tgt.y) <= 34) knock(s, f, b, tgt.x, tgt.y);
+      });
+      if (burners.length < 16) burners.push({ s, x: tgt.x + R(-8, 8), y: Math.min(tgt.y + R(-4, 10), s.water - 2), vy: 0, acc: 0, sacc: 0 });
+    }
+    if (!reduce) host.animate([{ transform: "translate(0,0)" }, { transform: `translate(${R(-5, 5)}px,${R(-4, 4)}px)` }, { transform: `translate(${R(-3, 3)}px,${R(-2, 2)}px)` }, { transform: "translate(0,0)" }], { duration: 320 });
+  }
+  function knock(s, f, b, ix, iy){
+    f.dataset.gone = "1";
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    let dx = cx - ix, dy = cy - iy; const d = Math.hypot(dx, dy) || 1; dx /= d;
+    const push = R(30, 85) * (dx < 0 ? -1 : 1) * Math.abs(dx) + R(-15, 15), rot = R(-150, 150), up = R(25, 65);
+    const m = f.parentNode.getScreenCTM && f.parentNode.getScreenCTM();
+    if (!m) return;
+    const inv = m.inverse(), loc = (x, y) => [(inv.a * x + inv.c * y) * s.k, (inv.b * x + inv.d * y) * s.k];
+    const [ax, ay] = loc(push * .45, -up), [bx, by] = loc(push, s.water - cy + 16 + b.h * .5), [ex, ey] = loc(push, s.water - cy + 30 + b.h);
+    const dur = R(1700, 2600);
+    const frames = [
+      { transform: "translate(0px,0px) rotate(0deg)", opacity: 1, easing: "cubic-bezier(.2,.7,.4,1)" },
+      { transform: `translate(${ax}px,${ay}px) rotate(${rot * .35}deg)`, opacity: 1, offset: .24, easing: "cubic-bezier(.55,0,.95,.6)" },
+      { transform: `translate(${bx}px,${by}px) rotate(${rot}deg)`, opacity: 1, offset: .86 },
+      { transform: `translate(${ex}px,${ey}px) rotate(${rot}deg)`, opacity: 0 },
+    ];
+    s.svg.querySelectorAll(`.frag[data-frag="${f.dataset.frag}"]`).forEach(el => {
+      el.dataset.gone = "1";
+      el.style.transformBox = "fill-box"; el.style.transformOrigin = "center";
+      el.animate(frames, { duration: dur, fill: "forwards" });
+    });
+    setTimeout(() => { measure(); const [sx, sy] = toCv(s, cx + push, s.water); splash(sx, sy, s.k * Math.min(2, .6 + b.w / 60)); }, dur * .86);
+  }
+
+  // ---- loop
+  function step(dt){
+    clock += dt;
+    if (clock >= nextAt){ spawn(); nextAt = clock + (reduce ? R(1.4, 2.4) : R(.45, 1.1)); }
+    for (let i = meteors.length - 1; i >= 0; i--){
+      const m = meteors[i], mv = m.sp * dt;
+      m.x += m.dx * mv; m.y += m.dy * mv; m.trav += mv;
+      m.sparkAcc += dt;
+      while (m.sparkAcc > .016){ m.sparkAcc -= .016; parts.push({ t: "ember", x: m.x, y: m.y, vx: -m.dx * R(20, 80) + R(-25, 25), vy: -m.dy * R(20, 80) + R(-25, 25), life: R(.35, .7), age: 0, r: R(1, 2.4) * m.size }); }
+      if (m.trav >= m.dist){ meteors.splice(i, 1); impact(m.tgt); }
+    }
+    for (const b of burners){
+      // the burning wreckage comes down with the parts it was on, and keeps burning at the waterline
+      if (b.y < b.s.water - 2){ b.vy += 160 * dt; b.y = Math.min(b.s.water - 2, b.y + b.vy * dt); }
+      const [x, y] = toCv(b.s, b.x, b.y), k = b.s.k;
+      b.acc += dt; b.sacc += dt;
+      while (b.acc > .035){ b.acc -= .035; parts.push({ t: "flame", x: x + R(-7, 7) * k, y: y + R(-2, 2) * k, vx: R(-8, 8) * k, vy: R(-60, -30) * k, r0: R(5, 9) * k, r1: R(1, 3) * k, life: R(.45, .8), age: 0 }); }
+      while (b.sacc > .22){ b.sacc -= .22; parts.push({ t: "smoke", x: x + R(-5, 5) * k, y: y - 10 * k, vx: R(-6, 10) * k, vy: R(-34, -20) * k, r0: R(6, 10) * k, r1: R(28, 50) * k, life: R(2.6, 3.8), age: 0, soft: true }); }
+    }
+    for (let i = parts.length - 1; i >= 0; i--){
+      const p = parts[i]; p.age += dt;
+      if (p.age >= p.life){ parts.splice(i, 1); continue; }
+      if (p.age < 0) continue;
+      if (p.vx !== undefined){ p.x += p.vx * dt; p.y += p.vy * dt; }
+      if (p.t === "spark"){ p.vy += 420 * dt; p.vx *= 1 - 1.2 * dt; p.vy *= 1 - .6 * dt; if (p.y > p.wy && p.vy > 0) p.age = p.life; }
+      else if (p.t === "debris"){ p.vy += 520 * dt; p.rot += p.vr * dt; if (p.y > p.wy){ splash(p.x, p.wy, .35); p.age = p.life; } }
+      else if (p.t === "drop"){ p.vy += 520 * dt; if (p.y > p.wy + 2 && p.vy > 0) p.age = p.life; }
+      else if (p.t === "fire"){ p.vx *= 1 - 2.4 * dt; p.vy = p.vy * (1 - 2.4 * dt) - 30 * dt; }
+      else if (p.t === "smoke"){ p.vx *= 1 - .4 * dt; p.vy *= 1 - .3 * dt; }
+      else if (p.t === "ember"){ p.vx *= 1 - 2 * dt; p.vy *= 1 - 2 * dt; }
+    }
+  }
+  function radial(x, y, r, stops){
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    stops.forEach(([o, c]) => gr.addColorStop(o, c));
+    g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  function draw(){
+    g.clearRect(0, 0, W, H);
+    g.globalCompositeOperation = "source-over";
+    for (const p of parts){
+      if (p.age < 0) continue;
+      const u = p.age / p.life;
+      if (p.t === "smoke"){
+        const a = Math.min(1, p.age * 3) * (1 - u) * (p.soft ? .35 : .55), r = p.r0 + (p.r1 - p.r0) * Math.sqrt(u);
+        radial(p.x, p.y, r, [[0, `rgba(38,26,28,${a.toFixed(3)})`], [.6, `rgba(30,20,22,${(a * .55).toFixed(3)})`], [1, "rgba(20,14,16,0)"]]);
+      } else if (p.t === "debris"){
+        g.save(); g.translate(p.x, p.y); g.rotate(p.rot); g.fillStyle = "#1c1a1e"; g.fillRect(-p.s, -p.s * .6, p.s * 2, p.s * 1.2);
+        g.fillStyle = "rgba(255,120,40,.85)"; g.fillRect(-p.s * .4, -p.s * .25, p.s * .8, p.s * .5); g.restore();
+      }
+    }
+    g.globalCompositeOperation = "lighter";
+    for (const p of parts){
+      if (p.age < 0) continue;
+      const u = p.age / p.life;
+      if (p.t === "fire"){
+        const a = Math.min(1, p.age * 14) * Math.pow(1 - u, 1.3), r = p.r0 + (p.r1 - p.r0) * Math.min(1, u * 1.8);
+        const hot = 1 - u;
+        radial(p.x, p.y, r, [[0, `rgba(255,${Math.round(200 + 50 * hot)},${Math.round(120 + 110 * hot)},${a.toFixed(3)})`], [.35, `rgba(255,${Math.round(90 + 90 * hot)},30,${(a * .8).toFixed(3)})`], [.7, `rgba(190,30,10,${(a * .35).toFixed(3)})`], [1, "rgba(120,10,0,0)"]]);
+      } else if (p.t === "flash"){
+        const a = 1 - u; radial(p.x, p.y, p.r * (.6 + u * .6), [[0, `rgba(255,255,240,${a.toFixed(3)})`], [.3, `rgba(255,220,150,${(a * .7).toFixed(3)})`], [1, "rgba(255,120,40,0)"]]);
+      } else if (p.t === "ring"){
+        const r = p.R * Math.pow(u, .55);
+        g.strokeStyle = `rgba(255,210,160,${((1 - u) * .8).toFixed(3)})`; g.lineWidth = 3 * p.k * (1 - u) + .5;
+        g.beginPath(); if (p.flat) g.ellipse(p.x, p.y, r, r * .22, 0, 0, Math.PI * 2); else g.arc(p.x, p.y, r, 0, Math.PI * 2); g.stroke();
+      } else if (p.t === "spark"){
+        const a = 1 - u; g.strokeStyle = `rgba(255,${Math.round(170 + 70 * a)},${Math.round(90 * a)},${a.toFixed(3)})`; g.lineWidth = 1.6;
+        g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(p.x - p.vx * .035, p.y - p.vy * .035); g.stroke();
+      } else if (p.t === "ember"){
+        const a = (1 - u) * .9; radial(p.x, p.y, p.r * 3, [[0, `rgba(255,220,150,${a.toFixed(3)})`], [1, "rgba(255,80,20,0)"]]);
+      } else if (p.t === "flame"){
+        const a = Math.min(1, p.age * 10) * (1 - u), r = p.r0 + (p.r1 - p.r0) * u;
+        radial(p.x, p.y, r * 1.6, [[0, `rgba(255,230,160,${a.toFixed(3)})`], [.4, `rgba(255,120,30,${(a * .7).toFixed(3)})`], [1, "rgba(200,30,0,0)"]]);
+      } else if (p.t === "drop"){
+        g.fillStyle = `rgba(220,235,255,${((1 - u) * .8).toFixed(3)})`; g.fillRect(p.x - 1, p.y - 1, 2, 2);
+      }
+    }
+    for (const m of meteors){
+      const L = 130 * m.size, tx = m.x - m.dx * L, ty = m.y - m.dy * L;
+      for (const [w, a0] of [[10 * m.size, .22], [3.4 * m.size, 1]]){
+        const gr = g.createLinearGradient(m.x, m.y, tx, ty);
+        gr.addColorStop(0, `rgba(255,245,220,${a0})`); gr.addColorStop(.3, `rgba(255,140,50,${a0 * .7})`); gr.addColorStop(1, "rgba(255,40,20,0)");
+        g.strokeStyle = gr; g.lineWidth = w; g.lineCap = "round"; g.beginPath(); g.moveTo(m.x, m.y); g.lineTo(tx, ty); g.stroke();
+      }
+      radial(m.x, m.y, 20 * m.size, [[0, "rgba(255,255,245,1)"], [.25, "rgba(255,200,120,.8)"], [1, "rgba(255,80,20,0)"]]);
+    }
+    g.globalCompositeOperation = "source-over";
+  }
+  function frame(ts){
+    requestAnimationFrame(frame);
+    const now = ts / 1000, dt = Math.min(.05, now - (last || now)); last = now;
+    if (!host.offsetWidth){ return; }                  // hidden (classic view or 3D mode): pause
+    measure(); step(dt); draw();
+  }
+  function start(){ if (running) return; running = true; requestAnimationFrame(frame); }
+  // Split each breakable group into fragments before the reflections are cloned, so every
+  // fragment's mirror image carries the same data-frag and can be knocked down with it.
+  function prepare(){
+    let id = 0;
+    const NS = "http://www.w3.org/2000/svg";
+    const wrap = el => { const w = document.createElementNS(NS, "g"); w.setAttribute("class", "frag"); w.dataset.frag = String(id++); el.replaceWith(w); w.appendChild(el); };
+    scenes.forEach(s => {
+      const groups = [...s.svg.querySelectorAll(":scope > g.reflect")].slice(1);       // the first is the far shore: leave it
+      if (s.svg.id === "bridgePoole"){ const f = s.svg.querySelector(':scope > g[fill="#2b2a2e"]'); if (f) groups.push(f); }
+      groups.forEach(grp => [...grp.children].forEach(c => {
+        const splittable = c.tagName === "g" && !c.hasAttribute("transform") && c.children.length > 1 && !/stunt/.test(c.getAttribute("class") || "");
+        if (splittable) [...c.children].forEach(wrap); else wrap(c);
+      }));
+    });
+  }
+  return { start, prepare };
+})();
+Meteors2D.prepare();
+
 // Reflections: mirror everything marked .reflect into each scene's water. The clones share
 // the originals' classes, so they lift, drive and bob in step with the real thing.
 document.querySelectorAll(".bscene").forEach(svg => {
@@ -1700,11 +2073,13 @@ const Sky = (() => {
   const sc = sky.getContext("2d"), ac = au.getContext("2d");
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const curtains = [
-    { c: "45,226,196",  y: 0.20, amp: 0.07, f: 1.2, sp: 0.06,  ph: 0 },
-    { c: "123,92,255",  y: 0.32, amp: 0.09, f: 0.8, sp: 0.04,  ph: 2.1 },
-    { c: "255,111,168", y: 0.14, amp: 0.05, f: 1.6, sp: 0.05,  ph: 4.2 },
+    { c: "45,226,196",  rc: "255,40,50",  y: 0.20, amp: 0.07, f: 1.2, sp: 0.06,  ph: 0 },
+    { c: "123,92,255",  rc: "255,110,40", y: 0.32, amp: 0.09, f: 0.8, sp: 0.04,  ph: 2.1 },
+    { c: "255,111,168", rc: "210,20,70",  y: 0.14, amp: 0.05, f: 1.6, sp: 0.05,  ph: 4.2 },
   ];
+  curtains.forEach(k => { k.a = k.c.split(",").map(Number); k.b = k.rc.split(",").map(Number); });
   let stars = [], raf = null, last = 0, W = 0, H = 0, meteors = [], nextMeteor = 3;
+  let alarm = 0, red = 0, prevT = 0;           // alarm target, and how red the sky is now (eases in over ~3s)
 
   function resize(){
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1718,6 +2093,8 @@ const Sky = (() => {
   }
   function draw(t){
     const w = au.width, h = au.height;
+    red = reduce ? alarm : Math.min(alarm, red + Math.max(0, t - prevT) / 3); prevT = t;
+    curtains.forEach(k => { k.c = k.a.map((v, i) => Math.round(v + (k.b[i] - v) * red)).join(","); });
     ac.clearRect(0, 0, w, h);
     ac.globalCompositeOperation = "lighter";
     curtains.forEach(k => {
@@ -1734,6 +2111,11 @@ const Sky = (() => {
     ac.globalCompositeOperation = "source-over";
 
     sc.clearRect(0, 0, W, H);
+    if (red > 0){                                   // blood-red sky
+      const gr = sc.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, `rgba(160,0,20,${(.6 * red).toFixed(3)})`); gr.addColorStop(.55, `rgba(95,0,14,${(.35 * red).toFixed(3)})`); gr.addColorStop(1, `rgba(40,0,6,${(.2 * red).toFixed(3)})`);
+      sc.fillStyle = gr; sc.fillRect(0, 0, W, H);
+    }
     stars.forEach(s => {
       sc.globalAlpha = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
       sc.fillStyle = "#fff";
@@ -1743,20 +2125,23 @@ const Sky = (() => {
 
     // shooting stars: one every 5-14s, streaking down-left with a fading tail
     if (t >= nextMeteor){
-      meteors.push({ x: W * (0.25 + Math.random() * 0.7), y: H * Math.random() * 0.35, t0: t,
-                     vx: -(420 + Math.random() * 260), vy: 150 + Math.random() * 110, life: 0.9 + Math.random() * 0.5 });
-      nextMeteor = t + 5 + Math.random() * 9;
+      const storm = alarm > 0;                      // alarm: a steep, fiery meteor shower
+      meteors.push({ x: W * (0.25 + Math.random() * 0.7), y: H * Math.random() * (storm ? 0.2 : 0.35), t0: t, storm,
+                     vx: -(storm ? 260 + Math.random() * 260 : 420 + Math.random() * 260), vy: storm ? 380 + Math.random() * 260 : 150 + Math.random() * 110,
+                     life: 0.9 + Math.random() * 0.5 });
+      nextMeteor = t + (storm ? 0.15 + Math.random() * 0.5 : 5 + Math.random() * 9);
     }
     meteors = meteors.filter(m => t - m.t0 < m.life);
     meteors.forEach(m => {
       const a = t - m.t0, alpha = Math.sin(Math.PI * Math.min(1, a / m.life));
       const hx = m.x + m.vx * a, hy = m.y + m.vy * a;
-      const sp = Math.hypot(m.vx, m.vy), tx = hx - m.vx / sp * 140, ty = hy - m.vy / sp * 140;
+      const len = m.storm ? 220 : 140;
+      const sp = Math.hypot(m.vx, m.vy), tx = hx - m.vx / sp * len, ty = hy - m.vy / sp * len;
       const g = sc.createLinearGradient(hx, hy, tx, ty);
       g.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
-      g.addColorStop(0.25, `rgba(180,235,255,${(alpha * 0.5).toFixed(3)})`);
-      g.addColorStop(1, "rgba(180,235,255,0)");
-      sc.strokeStyle = g; sc.lineWidth = 1.6; sc.lineCap = "round";
+      g.addColorStop(0.25, m.storm ? `rgba(255,150,60,${(alpha * 0.7).toFixed(3)})` : `rgba(180,235,255,${(alpha * 0.5).toFixed(3)})`);
+      g.addColorStop(1, m.storm ? "rgba(255,40,20,0)" : "rgba(180,235,255,0)");
+      sc.strokeStyle = g; sc.lineWidth = m.storm ? 2.6 : 1.6; sc.lineCap = "round";
       sc.beginPath(); sc.moveTo(hx, hy); sc.lineTo(tx, ty); sc.stroke();
     });
   }
@@ -1771,9 +2156,11 @@ const Sky = (() => {
     if (!raf) raf = requestAnimationFrame(frame);
   }
   function stop(){ if (raf) cancelAnimationFrame(raf); raf = null; }
+  function setAlarm(){ alarm = 1; nextMeteor = 0; if (reduce && isAurora()) draw(0); }
   window.addEventListener("resize", () => { if (isAurora()){ resize(); if (reduce) draw(0); } });
-  return { start, stop };
+  return { start, stop, setAlarm };
 })();
+
 
 function setView(v){
   document.documentElement.setAttribute("data-view", v);
@@ -2000,10 +2387,11 @@ tickClock();
     if (!loading) loading = (async () => {
       if (!webglOK()) throw new Error("WebGL is not available");
       msg.textContent = "Loading 3D…";
-      const mod = await import("./scene3d.js?v=5");
+      const mod = await import("./scene3d.js?v=6");
       api = mod.create(host);
       msg.textContent = "";
       api.setStates(states3d);
+      if (alarmOn) api.setAlarm();
       return api;
     })();
     return loading;
@@ -2023,6 +2411,7 @@ tickClock();
     mode = b.dataset.mode; note.textContent = ""; save(); apply();
   }));
   window.__push3d = () => { if (api) api.setStates(states3d); };
+  window.__alarm3d = () => { if (api) api.setAlarm(); };
   window.__scene3d = () => api;   // for automated checks
   window.__apply3d = apply;
   apply();

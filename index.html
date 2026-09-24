@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>VMS Bridge Sign Status</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b1f'/%3E%3Cpath d='M8 46 H56' stroke='%232de2c4' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M22 44 L24 10 L32 44Z' fill='%23f4f7fb'/%3E%3Cpath d='M42 44 L40 10 L32 44Z' fill='%237b5cff'/%3E%3Ccircle cx='24' cy='10' r='3' fill='%23ff2d3d'/%3E%3Ccircle cx='40' cy='10' r='3' fill='%23ff6fa8'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600&display=swap" rel="stylesheet">
@@ -547,10 +548,58 @@
     .leaf, .sail{ transition-duration:.01s; transition-delay:0s !important; }
   }
 
-  /* boat cursor (bow is the click point); clickable things get a lit teal sail */
-  html, body{ cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 1 17, auto; }
+  /* boat cursor: the glowing red dot on the bow is the exact click point; clickable things get a lit teal sail */
+  html, body{ cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='h'%3E%3Cstop offset='0' stop-color='%23ff2d3d' stop-opacity='.95'/%3E%3Cstop offset='.45' stop-color='%23ff2d3d' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%23ff2d3d' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg transform='translate%284 0%29'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%23ffffff'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3Ccircle cx='5' cy='17' r='5' fill='url%28%23h%29'/%3E%3Ccircle cx='5' cy='17' r='1.9' fill='%23ff2d3d' stroke='%23ffffff' stroke-width='.8'/%3E%3C/svg%3E") 5 17, auto; }
   a, button, select, label, summary, [role="button"], [data-run], input[type="checkbox"], .timeline div{
-    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 1 17, pointer;
+    cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='h'%3E%3Cstop offset='0' stop-color='%23ff2d3d' stop-opacity='.95'/%3E%3Cstop offset='.45' stop-color='%23ff2d3d' stop-opacity='.45'/%3E%3Cstop offset='1' stop-color='%23ff2d3d' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg transform='translate%284 0%29'%3E%3Cg stroke='%23ffffff' stroke-opacity='.85' stroke-width='3.2' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cg stroke='%230b1022' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='M13.2 3 L13.2 16 L23.5 16 Z' fill='%232de2c4'/%3E%3Cpath d='M11.4 5.5 L11.4 16 L4.5 16 Z' fill='%23cfe8ff'/%3E%3Cpath d='M12.3 1.8 V17.5' fill='none'/%3E%3Cpath d='M1 17.5 L26.5 17.5 L22 23.2 L6.2 23.2 Z' fill='%23e56a2c'/%3E%3C/g%3E%3Cpath d='M5 27 q3 -2.2 6 0 t6 0 t6 0' fill='none' stroke='%232de2c4' stroke-width='1.6' stroke-linecap='round'/%3E%3C/g%3E%3Ccircle cx='5' cy='17' r='5' fill='url%28%23h%29'/%3E%3Ccircle cx='5' cy='17' r='1.9' fill='%23ff2d3d' stroke='%23ffffff' stroke-width='.8'/%3E%3C/svg%3E") 5 17, pointer;
+  }
+
+  /* ---------- aurora extras: mouse spotlight, glass edges, header flourish, entrances ---------- */
+  #spot{ display:none; }
+  html[data-view="aurora"] #spot{
+    display:block; position:fixed; left:0; top:0; width:620px; height:620px; margin:-310px 0 0 -310px; border-radius:50%;
+    pointer-events:none; z-index:1; opacity:0; transition:opacity .5s ease; will-change:transform;
+    background:radial-gradient(circle, rgba(123,92,255,0.13) 0%, rgba(45,226,196,0.06) 35%, transparent 68%);
+  }
+  html[data-view="aurora"] #spot.on{ opacity:1; }
+  html[data-view="aurora"] :is(.msg-row, .legend-card){ position:relative; }
+  html[data-view="aurora"] :is(.card, .stat, .msg-row, .legend-card){
+    background:radial-gradient(340px circle at var(--mx, -999px) var(--my, -999px), rgba(255,255,255,0.075), transparent 60%), var(--panel);
+  }
+  html[data-view="aurora"] :is(.card, .stat, .msg-row, .legend-card)::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; padding:1.5px; pointer-events:none;
+    background:radial-gradient(200px circle at var(--mx, -999px) var(--my, -999px), rgba(255,255,255,0.95), rgba(45,226,196,0.5) 30%, transparent 65%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+  }
+  html[data-view="aurora"] header::after{
+    content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; pointer-events:none; opacity:.85;
+    background:linear-gradient(90deg, transparent, var(--teal), var(--violet), var(--rose), var(--teal), transparent) 0 0 / 200% 100%;
+    animation:auroraLine 9s linear infinite;
+  }
+  @keyframes auroraLine{ to{ background-position:200% 0; } }
+  html[data-view="aurora"] h1 .accent{
+    background:linear-gradient(100deg, var(--teal) 0%, var(--teal) 40%, #ffffff 50%, var(--teal) 60%, var(--teal) 100%) 0 0 / 250% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:titleSheen 7s ease-in-out infinite;
+  }
+  @keyframes titleSheen{ 0%, 55%{ background-position:100% 0; } 100%{ background-position:0% 0; } }
+  html[data-view="aurora"] :is(.hero-line, .hero-lede, .orb-wrap, .legend-card){ animation:heroIn .9s cubic-bezier(.2,.7,.2,1) both; }
+  html[data-view="aurora"] .hero-line.l2{ animation-delay:.1s; }
+  html[data-view="aurora"] .orb-wrap{ animation-delay:.15s; }
+  html[data-view="aurora"] .hero-lede{ animation-delay:.22s; }
+  html[data-view="aurora"] .legend-card{ animation-delay:.3s; }
+  @keyframes heroIn{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
+  html[data-view="aurora"] .reveal{ opacity:0; transform:translateY(22px); transition:opacity .9s ease, transform .9s cubic-bezier(.2,.7,.2,1); }
+  html[data-view="aurora"] .reveal.in{ opacity:1; transform:none; }
+  html[data-view="aurora"]{ scrollbar-color:rgba(45,226,196,0.45) transparent; scrollbar-width:thin; }
+  html[data-view="aurora"] ::selection{ background:rgba(45,226,196,0.35); color:#fff; }
+  @media (prefers-reduced-motion: reduce){
+    html[data-view="aurora"] header::after, html[data-view="aurora"] h1 .accent,
+    html[data-view="aurora"] :is(.hero-line, .hero-lede, .orb-wrap, .legend-card){ animation:none; }
+    html[data-view="aurora"] .reveal{ opacity:1; transform:none; transition:none; }
   }
 
   /* hover tooltip, offset below-right of the cursor so it isn't covered */
@@ -567,6 +616,7 @@
 <div class="scan"></div>
 <canvas id="auroraCanvas" aria-hidden="true"></canvas>
 <canvas id="sky" aria-hidden="true"></canvas>
+<div id="spot" aria-hidden="true"></div>
 
 <header>
   <div>
@@ -1528,7 +1578,7 @@ const Sky = (() => {
     { c: "123,92,255",  y: 0.32, amp: 0.09, f: 0.8, sp: 0.04,  ph: 2.1 },
     { c: "255,111,168", y: 0.14, amp: 0.05, f: 1.6, sp: 0.05,  ph: 4.2 },
   ];
-  let stars = [], raf = null, last = 0, W = 0, H = 0;
+  let stars = [], raf = null, last = 0, W = 0, H = 0, meteors = [], nextMeteor = 3;
 
   function resize(){
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1564,6 +1614,25 @@ const Sky = (() => {
       sc.fillRect(s.x, s.y, s.r, s.r);
     });
     sc.globalAlpha = 1;
+
+    // shooting stars: one every 5-14s, streaking down-left with a fading tail
+    if (t >= nextMeteor){
+      meteors.push({ x: W * (0.25 + Math.random() * 0.7), y: H * Math.random() * 0.35, t0: t,
+                     vx: -(420 + Math.random() * 260), vy: 150 + Math.random() * 110, life: 0.9 + Math.random() * 0.5 });
+      nextMeteor = t + 5 + Math.random() * 9;
+    }
+    meteors = meteors.filter(m => t - m.t0 < m.life);
+    meteors.forEach(m => {
+      const a = t - m.t0, alpha = Math.sin(Math.PI * Math.min(1, a / m.life));
+      const hx = m.x + m.vx * a, hy = m.y + m.vy * a;
+      const sp = Math.hypot(m.vx, m.vy), tx = hx - m.vx / sp * 140, ty = hy - m.vy / sp * 140;
+      const g = sc.createLinearGradient(hx, hy, tx, ty);
+      g.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
+      g.addColorStop(0.25, `rgba(180,235,255,${(alpha * 0.5).toFixed(3)})`);
+      g.addColorStop(1, "rgba(180,235,255,0)");
+      sc.strokeStyle = g; sc.lineWidth = 1.6; sc.lineCap = "round";
+      sc.beginPath(); sc.moveTo(hx, hy); sc.lineTo(tx, ty); sc.stroke();
+    });
   }
   function frame(ts){
     raf = requestAnimationFrame(frame);
@@ -1749,6 +1818,47 @@ function tickClock(){
 }
 setInterval(tickClock, 1000);
 tickClock();
+
+// ---------- aurora: mouse spotlight + glass edges that catch the light (mouse/trackpad only; touch ignored) ----------
+(function(){
+  const spot = document.getElementById("spot");
+  const SEL = ".card, .stat, .msg-row, .legend-card";
+  let px = -1000, py = -1000, queued = false;
+  function paint(){
+    queued = false;
+    if (!isAurora()) return;
+    spot.style.transform = `translate3d(${px}px, ${py}px, 0)`;
+    document.querySelectorAll(SEL).forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.bottom < -250 || r.top > innerHeight + 250) return;
+      el.style.setProperty("--mx", `${Math.round(px - r.left)}px`);
+      el.style.setProperty("--my", `${Math.round(py - r.top)}px`);
+    });
+  }
+  const queue = () => { if (!queued){ queued = true; requestAnimationFrame(paint); } };
+  document.addEventListener("pointermove", e => {
+    if (e.pointerType === "touch") return;
+    px = e.clientX; py = e.clientY; spot.classList.add("on"); queue();
+  }, { passive: true });
+  document.documentElement.addEventListener("pointerleave", () => spot.classList.remove("on"));
+  window.addEventListener("scroll", queue, { passive: true });
+  // cards and rows are rebuilt on each refresh; re-apply the light to the new ones
+  ["grid", "msgRows", "summaryBar"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) new MutationObserver(queue).observe(el, { childList: true });
+  });
+})();
+
+// ---------- aurora: sections fade up the first time they scroll into view ----------
+(function(){
+  const targets = [...document.querySelectorAll("#summaryBar, #grid, #signMessages, .filters, .table-wrap")];
+  targets.forEach(el => el.classList.add("reveal"));
+  if (!("IntersectionObserver" in window)){ targets.forEach(el => el.classList.add("in")); return; }
+  const io = new IntersectionObserver(entries => entries.forEach(en => {
+    if (en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
+  }), { threshold: 0.06 });
+  targets.forEach(el => io.observe(el));
+})();
 
 tryHostedFirst().then(hosted => { if (!hosted) tryAutoReconnect(); });
 </script>

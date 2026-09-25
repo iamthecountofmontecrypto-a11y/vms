@@ -525,15 +525,19 @@ export function create(container){
   Object.assign(renderer.domElement.style, { display: "block", width: "100%", height: "100%" });
 
   const scene = new THREE.Scene();
-  // sky gradient, repainted as it turns blood red in alarm mode (k: 0 = night, 1 = red)
+  // Sky gradient: night, twilight and day palettes blended by the real sun (envW), then turned
+  // blood red by the alarm (k: 0..1).
   const skyCanvas = document.createElement("canvas"); skyCanvas.width = 4; skyCanvas.height = 256;
   const skyCtx = skyCanvas.getContext("2d"), skyTexture = new THREE.CanvasTexture(skyCanvas);
   skyTexture.colorSpace = THREE.SRGBColorSpace;
-  const SKY_STOPS = [[0, 0x02040c, 0x160205], [.6, 0x060b22, 0x520a0e], [.85, 0x0c1433, 0x951a12], [1, 0x131c42, 0xd9491c]];
-  const skyA = new THREE.Color(), skyB = new THREE.Color();
+  const SKY_OFFS = [0, .6, .85, 1], SKY_RED = [0x160205, 0x520a0e, 0x951a12, 0xd9491c];
+  const SKY_PAL = { n: [0x02040c, 0x060b22, 0x0c1433, 0x131c42], t: [0x141a3e, 0x3d2c5e, 0x9a4a64, 0xd98457], d: [0x2a6fc0, 0x4f93d6, 0x8cc2ea, 0xc9e3f5] };
+  const envW = { n: 1, t: 0, d: 0 };                               // night / twilight / day weights
+  const skyA = new THREE.Color(), skyB = new THREE.Color(), skyC = new THREE.Color();
+  const blend3 = (n, t, d, out) => out.setRGB(0, 0, 0).add(skyC.setHex(n).multiplyScalar(envW.n)).add(skyC.setHex(t).multiplyScalar(envW.t)).add(skyC.setHex(d).multiplyScalar(envW.d));
   function paintSky(k){
     const gr = skyCtx.createLinearGradient(0, 0, 0, 256);
-    for (const [o, a, b] of SKY_STOPS) gr.addColorStop(o, "#" + skyA.setHex(a).lerp(skyB.setHex(b), k).getHexString());
+    SKY_OFFS.forEach((o, i) => { blend3(SKY_PAL.n[i], SKY_PAL.t[i], SKY_PAL.d[i], skyA).lerp(skyB.setHex(SKY_RED[i]), k); gr.addColorStop(o, "#" + skyA.getHexString()); });
     skyCtx.fillStyle = gr; skyCtx.fillRect(0, 0, 4, 256); skyTexture.needsUpdate = true;
   }
   paintSky(0);
@@ -545,8 +549,29 @@ export function create(container){
   const moonLight = new THREE.DirectionalLight(0xc6d4ff, 1.6); moonLight.position.set(-60, 90, 40); scene.add(moonLight);
 
   // moon, halo, stars
-  const moon = new THREE.Mesh(new THREE.SphereGeometry(9, 32, 16), new THREE.MeshBasicMaterial({ color: 0xfff6dc, fog: false }));
-  moon.position.set(60, 95, -420); scene.add(moon);
+  const moonCanvas = document.createElement("canvas"); moonCanvas.width = moonCanvas.height = 128;
+  const moonTex = new THREE.CanvasTexture(moonCanvas); moonTex.colorSpace = THREE.SRGBColorSpace;
+  function drawMoon(phase){                        // the lit part for this phase (waxing lit on the right)
+    const c = moonCanvas.getContext("2d"), R = 60, C = 64, waxing = phase < .5, cs = Math.cos(2 * Math.PI * phase);
+    c.clearRect(0, 0, 128, 128);
+    c.fillStyle = "rgba(40,48,72,.55)"; c.beginPath(); c.arc(C, C, R, 0, Math.PI * 2); c.fill();          // earthshine
+    c.save(); c.beginPath(); c.arc(C, C, R, -Math.PI / 2, Math.PI / 2, !waxing);
+    c.ellipse(C, C, Math.abs(cs) * R + .01, R, 0, Math.PI / 2, -Math.PI / 2, waxing === (cs > 0)); c.closePath(); c.clip();
+    const gr = c.createRadialGradient(C - 18, C - 18, 4, C, C, R); gr.addColorStop(0, "#fffef6"); gr.addColorStop(.6, "#f3eed8"); gr.addColorStop(1, "#d8d0b6");
+    c.fillStyle = gr; c.fillRect(0, 0, 128, 128);
+    c.fillStyle = "rgba(150,140,112,.3)";
+    for (const [x, y, r] of [[-20, -14, 11], [16, 18, 8], [10, -24, 6], [-24, 20, 7], [26, -2, 5]]){ c.beginPath(); c.arc(C + x, C + y, r, 0, Math.PI * 2); c.fill(); }
+    c.restore(); moonTex.needsUpdate = true;
+  }
+  drawMoon(.5);
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex, fog: false, transparent: true, depthWrite: false }));
+  moon.scale.setScalar(22); moon.position.set(60, 95, -420); scene.add(moon);
+  const sun = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(256, 256, (g, w) => {
+    const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    r.addColorStop(0, "rgba(255,255,245,1)"); r.addColorStop(.07, "rgba(255,250,228,.96)"); r.addColorStop(.1, "rgba(255,236,190,.5)");
+    r.addColorStop(.3, "rgba(255,214,150,.16)"); r.addColorStop(.6, "rgba(255,190,120,.05)"); r.addColorStop(1, "rgba(255,170,100,0)");
+    g.fillStyle = r; g.fillRect(0, 0, w, w); }), fog: false, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  sun.scale.setScalar(120); sun.visible = false; sun.layers.set(1); scene.add(sun);
   moon.layers.set(1); camera.layers.enable(1);        // layer 1: seen by the camera, not by the water's mirror
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(128, 128, (g, w) => {
     const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
@@ -1175,20 +1200,62 @@ export function create(container){
   const bx = new THREE.Box3(), c0 = V(0, 0, 0), sz = V(0, 0, 0), UP = V(0, 1, 0);
 
   function captureLook(){
-    look0 = { fog: scene.fog.color.clone(), hs: hemi.color.clone(), hg: hemi.groundColor.clone(), ml: moonLight.color.clone(), moon: moon.material.color.clone(),
-              halo: halo.material.color.clone(), amb: wu.ambient.value.clone(), glint: wu.moonColor.value.clone(), deep: wu.deepColor.value.clone(), bloom: bloom.strength };
     look1 = { fog: new THREE.Color(0x3a0a0c), hs: new THREE.Color(0xc0402c), hg: new THREE.Color(0x200505), ml: new THREE.Color(0xff7a52), moon: new THREE.Color(0xff3a1c),
               halo: new THREE.Color(0xff4a2a), amb: lin(.16, .03, .025), glint: lin(.12, .03, .015), deep: lin(.006, .0012, .001), bloom: 1.05 };
   }
+  // ---- day and night: the real sun and moon (setSky) decide the base look; the alarm reddens it
+  const sky = { sunAlt: -30, sunAz: 0, moonAlt: 20, moonAz: 170, moonFrac: 1, moonPhase: .5, dayK: 0, nightK: 1, twK: 0 };
+  const ENV = {                                                    // [night, twilight, day]
+    fog: [0x080d26, 0x3b2c4e, 0x7fa3c6], hs: [0x5566a8, 0xd8907a, 0xcfe3ff], hg: [0x0a0c18, 0x2a1a24, 0x4a5a6a], hi: [.9, 1.3, 2.2],
+    amb: [[.045, .055, .085], [.12, .08, .1], [.42, .5, .62]], deep: [[.0015, .004, .009], [.01, .006, .012], [.012, .05, .075]],
+    bloom: [.85, .7, .3], win: [1.6, 1, .12], stars: [.8, .25, 0],
+  };
+  const wsum = a => a[0] * envW.n + a[1] * envW.t + a[2] * envW.d;
+  const linMix = (a, out) => out.setRGB(wsum([a[0][0], a[1][0], a[2][0]]), wsum([a[0][1], a[1][1], a[2][1]]), wsum([a[0][2], a[1][2], a[2][2]]));
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const sunDirReal = V(0, -1, 0), sunDirShow = V(0, -1, 0), moonDirReal = V(0, 1, 0), moonDirShow = V(0, 1, 0), keyDir = V(0, 1, 0), NIGHT_KEY = V(-.4, .8, .3).normalize();
+  const keyA = new THREE.Color(), keyB = new THREE.Color();
+  // The view looks south; the northern half of the sky is folded onto the southern half.
+  const foldAz = az => (az >= 90 && az <= 270) ? az : (az < 90 ? 180 - az : 540 - az);
+  const dirFrom = (az, alt, out) => { const a = foldAz(az) * Math.PI / 180, e = alt * Math.PI / 180; return out.set(-Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)).normalize(); };
+  const showAlt = alt => alt > 0 ? 6 * (1 - Math.exp(-alt / 12)) : alt * .5;   // squeeze the sky into what the camera can see
+  let moonPhaseDrawn = .5;
+  function setSky(st){
+    Object.assign(sky, st); envW.n = sky.nightK; envW.t = sky.twK; envW.d = sky.dayK;
+    dirFrom(sky.sunAz, sky.sunAlt, sunDirReal); dirFrom(sky.sunAz, showAlt(sky.sunAlt), sunDirShow);
+    dirFrom(sky.moonAz, sky.moonAlt, moonDirReal); dirFrom(sky.moonAz, showAlt(sky.moonAlt), moonDirShow);
+    sun.position.copy(sunDirShow).multiplyScalar(430); sun.visible = sky.sunAlt > -4;
+    moon.position.copy(moonDirShow).multiplyScalar(420); moon.visible = sky.moonAlt > -2; halo.position.copy(moon.position); halo.visible = moon.visible;
+    if (Math.abs(sky.moonPhase - moonPhaseDrawn) > .004){ drawMoon(sky.moonPhase); moonPhaseDrawn = sky.moonPhase; }
+    applyLook(alarmK);
+  }
   function applyLook(k){
+    if (!look1) captureLook();
     paintSky(k);
-    scene.fog.color.copy(look0.fog).lerp(look1.fog, k);
-    hemi.color.copy(look0.hs).lerp(look1.hs, k); hemi.groundColor.copy(look0.hg).lerp(look1.hg, k);
-    moonLight.color.copy(look0.ml).lerp(look1.ml, k);
-    moon.material.color.copy(look0.moon).lerp(look1.moon, k); halo.material.color.copy(look0.halo).lerp(look1.halo, k);
-    wu.ambient.value.copy(look0.amb).lerp(look1.amb, k); wu.moonColor.value.copy(look0.glint).lerp(look1.glint, k); wu.deepColor.value.copy(look0.deep).lerp(look1.deep, k);
-    bloom.strength = look0.bloom + (look1.bloom - look0.bloom) * k;
-    starMat.opacity = .8 - .5 * k;
+    blend3(...ENV.fog, scene.fog.color).lerp(look1.fog, k); scene.fog.density = .0075 * (1 - .55 * envW.d * (1 - k));
+    blend3(...ENV.hs, hemi.color).lerp(look1.hs, k); blend3(...ENV.hg, hemi.groundColor).lerp(look1.hg, k); hemi.intensity = wsum(ENV.hi);
+    // key light: the sun by day and at twilight, the moon at night
+    if (sky.sunAlt > -3){
+      keyDir.copy(sunDirReal); keyA.setHex(0xff9a5a).lerp(keyB.setHex(0xfff3e0), sstep(0, 25, sky.sunAlt));
+      moonLight.intensity = .5 + 2.6 * sstep(-3, 14, sky.sunAlt);
+    } else {
+      keyDir.copy(sky.moonAlt > 0 ? moonDirReal : NIGHT_KEY); keyA.setHex(0xc6d4ff);
+      moonLight.intensity = sky.moonAlt > 0 ? .5 + 1.1 * sky.moonFrac : .45;
+    }
+    if (keyDir.y < .15){ keyDir.y = .15; keyDir.normalize(); }
+    moonLight.position.copy(keyDir).multiplyScalar(100); moonLight.color.copy(keyA).lerp(look1.ml, k);
+    // glint on the water: the sun's glitter path, or the moon's
+    const low = 1 - sstep(0, 15, sky.sunAlt);
+    if (sky.sunAlt > -2){ wu.moonDir.value.copy(sunDirShow); wu.moonColor.value.setRGB(.36 + .1 * low, .31 - .1 * low, .24 - .15 * low).multiplyScalar(sstep(-2, 4, sky.sunAlt)); }
+    else { wu.moonDir.value.copy(moonDirShow); wu.moonColor.value.setRGB(.07, .064, .05).multiplyScalar(sky.moonAlt > 0 ? .25 + .75 * sky.moonFrac : 0); }
+    wu.moonColor.value.lerp(look1.glint, k);
+    linMix(ENV.amb, wu.ambient.value).lerp(look1.amb, k); linMix(ENV.deep, wu.deepColor.value).lerp(look1.deep, k);
+    moon.material.color.setRGB(1, 1, 1).lerp(look1.moon, k); moon.material.opacity = 1 - sky.dayK * .45;
+    halo.material.color.setRGB(1, 1, 1).lerp(look1.halo, k); halo.material.opacity = Math.max(sky.nightK * (.3 + .7 * sky.moonFrac), k);
+    sun.material.color.setRGB(2.2, 2 - .9 * low, 1.7 - 1.2 * low).multiplyScalar(1 - k * .6);
+    const bl = wsum(ENV.bloom); bloom.strength = bl + (look1.bloom - bl) * k;
+    starMat.opacity = wsum(ENV.stars) * (1 - k * .6);
+    if (facadeMats) facadeMats.forEach(m => { m.emissiveIntensity = wsum(ENV.win); });
   }
   // Everything a meteor can knock off a bridge: each child of the bridge group (lamps, barriers,
   // cars, rails, portals...) and each part of the lifting leaves -- but not the fixed foundations.
@@ -2538,7 +2605,7 @@ export function create(container){
     updateBoats(dt, now); updateExplosions(dt); updateEvents(dt);
     if (!alarm) updateParticles(dt);
     if (alarm) updateAlarm(dt, now);
-    else if (alarmK > 0){ alarmK = Math.max(0, alarmK - dt / 3); applyLook(alarmK); }     // sky fades back to night
+    else if (alarmK > 0){ alarmK = Math.max(0, alarmK - dt / 3); applyLook(alarmK); }     // sky fades back to normal
     camera.position.y = camY;
     if (shake > .01 && !reduce){ camera.position.x += (Math.random() - .5) * shake; camera.position.y += (Math.random() - .5) * shake * .6; shake *= Math.exp(-dt * 5); }
     composer.render();
@@ -2552,15 +2619,18 @@ export function create(container){
   new IntersectionObserver(es => { visible = es[0].isIntersecting; sync(); }).observe(container);
   resize();
   for (const b of bridges) updateBridge(b, performance.now() / 1000, 0);
+  setSky({});
 
   return {
     setActive(on){ active = on; if (on) resize(); sync(); },
+    // real day and night: { sunAlt, sunAz, moonAlt, moonAz, moonFrac, moonPhase, dayK, nightK, twK }
+    setSky(st){ setSky(st); },
     // alarm mode: red sky, a meteor shower, the bridges wrecked; switching it off repairs everything
     setAlarm(on = true){
       if (on === alarm) return;
       alarm = on;
       if (on){
-        if (!look0) captureLook();
+        if (!look1) captureLook();
         if (!flamePool.length) makePools();
         for (const b of bridges) collectPieces(b);
         nextMeteor = clockA + .6;

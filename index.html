@@ -717,10 +717,31 @@
   #meteorFx{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; display:none; }
   html.alarm #meteorFx{ display:block; }
   .bscene.wrecked .traffic *, .bscene.wrecked .queue *{ animation-play-state:paused !important; }
+
+  /* ---------- day and night (follows the real sun and moon over Poole) ---------- */
+  #skyBg{ display:none; }
+  html[data-view="aurora"] #skyBg{ display:block; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(circle at var(--sun-x, 70%) var(--sun-y, 10%), var(--sun-glow, rgba(0,0,0,0)) 0, rgba(0,0,0,0) 42%),
+               linear-gradient(to bottom, var(--sky-top, #050818), var(--sky-mid, #070b1f) 55%, var(--sky-bot, #0c1330)); }
+  html[data-view="classic"]{ --bg:var(--classic-bg, #03050a); }
+  html[data-view="aurora"][data-sky="day"]{ --panel:rgba(6,24,56,0.36); --panel-border:rgba(255,255,255,0.2); --text-dim:rgba(240,246,255,0.8); }
+  html[data-view="aurora"][data-sky="twilight"]{ --panel:rgba(24,12,44,0.3); --text-dim:rgba(245,236,255,0.74); }
+  html[data-view="aurora"][data-sky="day"] header{ background:rgba(8,32,76,0.42); }
+  html[data-view="aurora"][data-sky="day"] main{ text-shadow:0 1px 3px rgba(0,20,60,0.35); }
+  .bscene{ filter:brightness(calc(1 + var(--dayk, 0) * .18)) saturate(calc(1 + var(--dayk, 0) * .1)); }
+  .bscene .searchlight .sweep{ opacity:calc(1 - var(--dayk, 0) * .85); }
+  .bscene .streaks{ opacity:calc(1 - var(--dayk, 0) * .85); }
+  #tsWater stop:first-child, #pbWater stop:first-child{ stop-color:var(--water-top, #0d2144); }
+  #tsWater stop:last-child, #pbWater stop:last-child{ stop-color:var(--water-bot, #040918); }
+  .skypath .glitter{ stroke:var(--glitter, #fff4d6); }
+  .sun-rays{ transform-box:fill-box; transform-origin:center; animation:sunspin 90s linear infinite; }
+  @keyframes sunspin{ to{ transform:rotate(360deg); } }
+  html[data-view="aurora"] .sky-btn[aria-pressed="true"]{ color:var(--teal); text-decoration:none; font-weight:600; }
 </style>
 </head>
 <body>
 <div class="scan"></div>
+<div id="skyBg" aria-hidden="true"></div>
 <canvas id="auroraCanvas" aria-hidden="true"></canvas>
 <canvas id="sky" aria-hidden="true"></canvas>
 <div id="spot" aria-hidden="true"></div>
@@ -778,6 +799,7 @@
       <div class="lg-note" id="legendNote"></div>
       <div class="lg-preview">Preview a lift: <button class="linkish" data-preview="POOLE">Poole</button> · <button class="linkish" data-preview="TWIN">Twin Sails</button></div>
       <div class="lg-preview">Bridges: <button class="linkish mode-btn" data-mode="2d" aria-pressed="true">2D</button> · <button class="linkish mode-btn" data-mode="3d" aria-pressed="false">3D</button> · <button class="linkish" id="alarmTest" aria-pressed="false" title="Show the over-30-minute lift alarm (click again to stop)">Test alarm</button> <span class="mode-note" id="modeNote"></span></div>
+      <div class="lg-preview">Sky: <button class="linkish sky-btn" data-sky-mode="live" aria-pressed="true" title="Follow the real sun and moon over Poole">Live</button> · <button class="linkish sky-btn" data-sky-mode="day" aria-pressed="false">Day</button> · <button class="linkish sky-btn" data-sky-mode="dusk" aria-pressed="false">Dusk</button> · <button class="linkish sky-btn" data-sky-mode="night" aria-pressed="false">Night</button> <span class="mode-note" id="skyNote"></span></div>
     </aside>
   </section>
   <div id="sceneBand">
@@ -804,6 +826,10 @@
         <linearGradient id="droneBeam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fe3ff" stop-opacity=".28"/><stop offset="1" stop-color="#7fe3ff" stop-opacity="0"/></linearGradient>
         <radialGradient id="moonGrad" cx=".4" cy=".38" r=".7"><stop offset="0" stop-color="#fffef6"/><stop offset=".6" stop-color="#f3eed8"/><stop offset="1" stop-color="#d8d0b6"/></radialGradient>
         <radialGradient id="bloodHalo"><stop offset="0" stop-color="#ff3a20" stop-opacity=".5"/><stop offset=".4" stop-color="#ff3a20" stop-opacity=".16"/><stop offset="1" stop-color="#ff3a20" stop-opacity="0"/></radialGradient>
+        <radialGradient id="sunGlowHi"><stop offset="0" stop-color="#fff8dc" stop-opacity=".6"/><stop offset=".3" stop-color="#ffeab4" stop-opacity=".2"/><stop offset="1" stop-color="#ffe0a0" stop-opacity="0"/></radialGradient>
+        <radialGradient id="sunGlowLow"><stop offset="0" stop-color="#ffb070" stop-opacity=".75"/><stop offset=".35" stop-color="#ff7a45" stop-opacity=".25"/><stop offset="1" stop-color="#ff5a30" stop-opacity="0"/></radialGradient>
+        <radialGradient id="sunDiscHi" cx=".42" cy=".4" r=".65"><stop offset="0" stop-color="#fffef4"/><stop offset=".7" stop-color="#fff2c0"/><stop offset="1" stop-color="#ffd97a"/></radialGradient>
+        <radialGradient id="sunDiscLow" cx=".42" cy=".4" r=".65"><stop offset="0" stop-color="#ffe2b0"/><stop offset=".7" stop-color="#ff9a55"/><stop offset="1" stop-color="#ff6a38"/></radialGradient>
         <radialGradient id="moonHalo"><stop offset="0" stop-color="#f5f0dc" stop-opacity=".32"/><stop offset=".35" stop-color="#f5f0dc" stop-opacity=".1"/><stop offset="1" stop-color="#f5f0dc" stop-opacity="0"/></radialGradient>
         <linearGradient id="mistGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b8c8e6" stop-opacity="0"/><stop offset=".55" stop-color="#b8c8e6" stop-opacity=".09"/><stop offset="1" stop-color="#b8c8e6" stop-opacity="0"/></linearGradient>
         <linearGradient id="upLight" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff3c4" stop-opacity=".28"/><stop offset="1" stop-color="#fff3c4" stop-opacity="0"/></linearGradient>
@@ -934,11 +960,6 @@
           <clipPath id="hudClipPoole"><rect x="406" y="24" width="178" height="40" rx="6"/></clipPath>
         </defs>
         <!-- moon and its halo -->
-        <circle cx="300" cy="54" r="46" fill="url(#moonHalo)"/>
-        <circle cx="300" cy="54" r="11" fill="url(#moonGrad)"/>
-        <circle class="bloodmoon" cx="300" cy="54" r="46" fill="url(#bloodHalo)"/>
-        <circle class="bloodmoon" cx="300" cy="54" r="11" fill="#d8261a"/>
-        <g fill="#b9b19a" opacity=".22"><circle cx="296" cy="51" r="2.2"/><circle cx="303.5" cy="57.5" r="1.5"/><circle cx="302" cy="49" r="1"/></g>
         <g class="gulls" stroke="#cfd8e6" stroke-width="1" fill="none" stroke-linecap="round">
           <g class="gull-path" style="animation-duration:46s"><g transform="translate(0,40)"><path class="gull" d="M-6 0 Q-3 -3.5 0 0 Q3 -3.5 6 0"/></g></g>
           <g class="gull-path" style="animation-duration:58s;animation-delay:-38s"><g transform="translate(0,62)"><path class="gull" style="animation-delay:-.3s" d="M-5 0 Q-2.5 -3 0 0 Q2.5 -3 5 0"/></g></g>
@@ -955,7 +976,6 @@
         <!-- water: base, mirrored scene (filled in by script) with a live ripple, moonlight, swell, streaks -->
         <rect x="0" y="212" width="600" height="60" fill="url(#pbWater)"/>
         <g class="reflection" mask="url(#pbReflMask)"><g filter="url(#ripple)"><g transform="translate(0,424) scale(1,-1)"></g></g></g>
-        <g class="moonpath"><path class="glitter" d="M299.8 218 h5.0" style="animation-delay:-0.9s"/><path class="glitter" d="M297.0 222 h8.4" style="animation-delay:-1.8s"/><path class="glitter" d="M294.6 226 h11.8" style="animation-delay:-1.4s"/><path class="glitter" d="M294.4 230 h15.2" style="animation-delay:-2.8s"/><path class="glitter" d="M290.5 234 h18.6" style="animation-delay:-2.0s"/><path class="glitter" d="M286.4 238 h22.0" style="animation-delay:-2.1s"/><path class="glitter" d="M288.2 242 h25.4" style="animation-delay:-3.0s"/><path class="glitter" d="M287.5 246 h28.8" style="animation-delay:-0.9s"/><path class="glitter" d="M283.2 250 h32.2" style="animation-delay:-2.0s"/><path class="glitter" d="M279.3 254 h35.6" style="animation-delay:-1.4s"/><path class="glitter" d="M278.5 258 h39.0" style="animation-delay:-0.4s"/><path class="glitter" d="M276.2 262 h42.4" style="animation-delay:-2.3s"/><path class="glitter" d="M274.9 266 h45.8" style="animation-delay:-0.7s"/></g>
         <g class="waves"><path class="wave" d="M0 222 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 " style="animation-duration:40s;opacity:0.1"/><path class="wave" d="M0 234 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 " style="animation-duration:30s;opacity:0.14"/><path class="wave" d="M0 248 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 " style="animation-duration:22s;opacity:0.18"/><path class="wave" d="M0 262 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 q5 -1.1 10 0 t10 0 " style="animation-duration:16s;opacity:0.22"/></g>
         <g class="streaks"><ellipse class="streak" cx="44" cy="236" rx="1.6" ry="14" fill="#ffd98a" style="animation-delay:0s"/><ellipse class="streak" cx="74" cy="238" rx="1.6" ry="14" fill="#ffd98a" style="animation-delay:0.5s"/><ellipse class="streak" cx="534" cy="236" rx="1.6" ry="14" fill="#ffd98a" style="animation-delay:0.9s"/><ellipse class="streak" cx="564" cy="238" rx="1.6" ry="14" fill="#ffd98a" style="animation-delay:0.2s"/><ellipse class="streak" cx="110" cy="240" rx="1.6" ry="18" fill="#fff3c4" style="animation-delay:0.6s"/><ellipse class="streak" cx="490" cy="240" rx="1.6" ry="18" fill="#fff3c4" style="animation-delay:1.2s"/></g>
         <rect class="mist" x="-120" y="190" width="840" height="30" fill="url(#mistGrad)"/>
@@ -2942,7 +2962,168 @@ document.addEventListener("pointermove", e => {
   card.style.setProperty("--rx", `${-((e.clientY - b.top) / b.height - 0.5) * 6}deg`);
 });
 
-// night sky: twinkling stars (full res) + three aurora curtains (quarter res, CSS-blurred)
+// ---------- day and night: the page, the 2D scenes and the 3D scene follow the real sun and moon ----------
+// ---------- the real sun and moon over Poole (low-precision formulas, as used by SunCalc) ----------
+// Positions are good to about a degree, which is plenty for placing them in the sky.
+const Celestial = (() => {
+  const LAT = 50.715, LNG = -1.987, rad = Math.PI / 180, dayMs = 864e5, J1970 = 2440588, J2000 = 2451545, e = rad * 23.4397;
+  const toDays = date => date.valueOf() / dayMs - .5 + J1970 - J2000;
+  const rightAsc = (l, b) => Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l));
+  const declin = (l, b) => Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
+  function sunCoords(d){
+    const M = rad * (357.5291 + .98560028 * d);
+    const L = M + rad * (1.9148 * Math.sin(M) + .02 * Math.sin(2 * M) + .0003 * Math.sin(3 * M)) + rad * 102.9372 + Math.PI;
+    return { ra: rightAsc(L, 0), dec: declin(L, 0) };
+  }
+  function moonCoords(d){
+    const L = rad * (218.316 + 13.176396 * d), M = rad * (134.963 + 13.064993 * d), F = rad * (93.272 + 13.229350 * d);
+    const l = L + rad * 6.289 * Math.sin(M), b = rad * 5.128 * Math.sin(F);
+    return { ra: rightAsc(l, b), dec: declin(l, b), dist: 385001 - 20905 * Math.cos(M) };
+  }
+  function horizontal(c, d){                     // altitude (deg) and compass bearing (deg, 0 = north, 90 = east)
+    const phi = rad * LAT, H = rad * (280.16 + 360.9856235 * d) + rad * LNG - c.ra;
+    const alt = Math.asin(Math.sin(phi) * Math.sin(c.dec) + Math.cos(phi) * Math.cos(c.dec) * Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(c.dec) * Math.cos(phi));
+    return { alt: alt / rad, az: ((az / rad + 180) % 360 + 360) % 360 };
+  }
+  function at(date){
+    const d = toDays(date), s = sunCoords(d), m = moonCoords(d), sun = horizontal(s, d), moon = horizontal(m, d);
+    const sdist = 149598000;
+    const phi = Math.acos(Math.sin(s.dec) * Math.sin(m.dec) + Math.cos(s.dec) * Math.cos(m.dec) * Math.cos(s.ra - m.ra));
+    const inc = Math.atan2(sdist * Math.sin(phi), m.dist - sdist * Math.cos(phi));
+    const angle = Math.atan2(Math.cos(s.dec) * Math.sin(s.ra - m.ra), Math.sin(s.dec) * Math.cos(m.dec) - Math.cos(s.dec) * Math.sin(m.dec) * Math.cos(s.ra - m.ra));
+    return { sunAlt: sun.alt, sunAz: sun.az, moonAlt: moon.alt, moonAz: moon.az,
+             moonFrac: (1 + Math.cos(inc)) / 2, moonPhase: .5 + .5 * inc * (angle < 0 ? -1 : 1) / Math.PI };
+  }
+  function sunTimes(date){                       // today's sunrise and sunset (sun's centre at -0.833 deg)
+    const start = new Date(date); start.setHours(0, 0, 0, 0);
+    let rise = null, set = null, prev = null;
+    for (let m = 0; m <= 1440; m += 2){
+      const t = new Date(start.getTime() + m * 60000), a = at(t).sunAlt;
+      if (prev !== null){ if (prev < -.833 && a >= -.833) rise = t; if (prev >= -.833 && a < -.833) set = t; }
+      prev = a;
+    }
+    return { rise, set };
+  }
+  return { at, sunTimes };
+})();
+const smoothK = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+let skyNow = { dayK: 0, nightK: 1, twK: 0, sunAlt: -30, sunAz: 0, moonAlt: 30, moonAz: 180, moonFrac: 1, moonPhase: .5 };
+let skyPreview = null;                 // null = live; "day" | "dusk" | "night" to preview
+const SkyClock = (() => {
+  const root = document.documentElement, NS = "http://www.w3.org/2000/svg";
+  // colours for night / twilight / day, blended by the sun's altitude
+  const PAL = { night: ["#050818", "#070b1f", "#0c1330"], tw: ["#1b1f4a", "#5a3466", "#c2566a"], day: ["#1a4f93", "#2d6db3", "#4f8fcf"] };
+  const WATER = { night: ["#0d2144", "#040918"], tw: ["#3a2f5c", "#140c24"], day: ["#2f6fae", "#123d6b"] };
+  const CLASSIC = { night: ["#03050a"], tw: ["#0f0c1c"], day: ["#0a1a2e"] };
+  const PRESET = { day: { sunAlt: 38, sunAz: 165 }, dusk: { sunAlt: 1.2, sunAz: 212 }, night: { sunAlt: -32, sunAz: 355 } };   // previews (dusk puts the setting sun in view)
+  const hexRGB = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const mix = (pal, i, w) => { const c = [0, 0, 0]; for (const k of ["night", "tw", "day"]){ const v = hexRGB(pal[k][i]); for (let j = 0; j < 3; j++) c[j] += v[j] * w[k]; } return `rgb(${c.map(Math.round).join(",")})`; };
+  // the view looks south: east on the left, west on the right. Anything in the northern half of
+  // the sky is folded onto the southern half so it can still be seen.
+  const fold = az => (az >= 90 && az <= 270) ? az : (az < 90 ? 180 - az : 540 - az);
+  const panX = az => (fold(az) - 90) / 180 * 1200;                  // 0..1200 across both 2D scenes
+  const panY = alt => 200 - Math.max(-6, Math.min(65, alt)) / 65 * 178;
+  function state(){
+    const s = Celestial.at(new Date());
+    if (skyPreview){ Object.assign(s, PRESET[skyPreview]); if (skyPreview !== "day"){ s.moonAlt = 28; s.moonAz = skyPreview === "dusk" ? 120 : 150; } }
+    s.dayK = smoothK(-2, 10, s.sunAlt); s.nightK = 1 - smoothK(-14, -3, s.sunAlt); s.twK = Math.max(0, 1 - s.dayK - s.nightK);
+    return s;
+  }
+  function moonPath(r, phase){                     // the lit part of the moon (waxing lit on the right)
+    const waxing = phase < .5, c = Math.cos(2 * Math.PI * phase), rx = Math.abs(c) * r;
+    return `M0 ${-r} A${r} ${r} 0 0 ${waxing ? 1 : 0} 0 ${r} A${rx.toFixed(2)} ${r} 0 0 ${waxing ? (c > 0 ? 0 : 1) : (c > 0 ? 1 : 0)} 0 ${-r}Z`;
+  }
+  // ---- 2D: a sun and a moon in each scene (behind everything), and a glitter path on the water
+  const rays = Array.from({ length: 12 }, (_, i) => { const a = i / 12 * Math.PI * 2; return `<line x1="${(Math.cos(a) * 17).toFixed(1)}" y1="${(Math.sin(a) * 17).toFixed(1)}" x2="${(Math.cos(a) * 25).toFixed(1)}" y2="${(Math.sin(a) * 25).toFixed(1)}"/>`; }).join("");
+  const scenes = [["bridgeTwin", 0, 216], ["bridgePoole", 600, 212]].map(([id, off, water]) => {
+    const svg = document.getElementById(id), g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "celestial");
+    g.innerHTML = `
+      <g class="sun2d" style="display:none">
+        <circle r="80" fill="url(#sunGlowHi)"/><circle class="sun-low" r="100" fill="url(#sunGlowLow)"/>
+        <g class="sun-rays" stroke="rgba(255,240,200,.55)" stroke-width="1.3" stroke-linecap="round">${rays}</g>
+        <circle r="13" fill="url(#sunDiscHi)"/><circle class="sun-low" r="13.5" fill="url(#sunDiscLow)"/>
+      </g>
+      <g class="moon2d" style="display:none">
+        <clipPath id="moonClip-${id}"><path class="moon-lit"/></clipPath>
+        <circle class="moon-halo" r="46" fill="url(#moonHalo)"/>
+        <circle r="11" fill="#1d2440" opacity=".85"/>
+        <path class="moon-lit" fill="url(#moonGrad)"/>
+        <g clip-path="url(#moonClip-${id})" fill="#b9b19a" opacity=".3"><circle cx="-4" cy="-3" r="2.2"/><circle cx="3.5" cy="3.5" r="1.5"/><circle cx="2" cy="-5" r="1"/><circle cx="-5" cy="4" r="1.2"/></g>
+        <circle class="bloodmoon" r="46" fill="url(#bloodHalo)"/><circle class="bloodmoon" r="11" fill="#d8261a"/>
+      </g>`;
+    svg.querySelector(":scope > defs").after(g);
+    const path = document.createElementNS(NS, "g");
+    path.setAttribute("class", "moonpath skypath"); path.style.display = "none";
+    path.innerHTML = Array.from({ length: 13 }, (_, i) => { const w = 5 + i * 3.4, x = -w / 2 + Math.sin(i * 2.3) * 2.5; return `<path class="glitter" d="M${x.toFixed(1)} ${water + 2 + i * 4} h${w.toFixed(1)}" style="animation-delay:-${(i * .37 % 3).toFixed(2)}s"/>`; }).join("");
+    svg.querySelector(":scope > g.reflection").after(path);
+    return { off, sun: g.querySelector(".sun2d"), moon: g.querySelector(".moon2d"), lit: g.querySelectorAll(".moon-lit"), halo: g.querySelector(".moon-halo"), lows: g.querySelectorAll(".sun-low"), path };
+  });
+  function place2D(s){
+    const sx = panX(s.sunAz), sy = panY(s.sunAlt), mx = panX(s.moonAz), my = panY(s.moonAlt);
+    const sunUp = s.sunAlt > -4, moonUp = s.moonAlt > -2, d = moonPath(11, s.moonPhase);
+    const low = 1 - smoothK(0, 14, s.sunAlt), sunVis = smoothK(-4, 1, s.sunAlt);
+    const moonGlitter = moonUp && s.nightK > .3 && s.moonFrac > .15, sunGlitter = sunUp && s.sunAlt < 30;
+    for (const sc of scenes){
+      const lx = sx - sc.off, lmx = mx - sc.off;
+      const showSun = sunUp && lx > -90 && lx < 690, showMoon = moonUp && lmx > -60 && lmx < 660;
+      sc.sun.style.display = showSun ? "" : "none";
+      if (showSun){ sc.sun.setAttribute("transform", `translate(${lx.toFixed(1)},${sy.toFixed(1)})`); sc.sun.style.opacity = sunVis.toFixed(3); sc.lows.forEach(el => { el.style.opacity = low.toFixed(3); }); }
+      sc.moon.style.display = showMoon ? "" : "none";
+      if (showMoon){
+        sc.moon.setAttribute("transform", `translate(${lmx.toFixed(1)},${my.toFixed(1)})`);
+        sc.moon.style.opacity = (1 - s.dayK * .45).toFixed(3);
+        sc.halo.style.opacity = (s.nightK * (.3 + .7 * s.moonFrac)).toFixed(3);
+        sc.lit.forEach(el => el.setAttribute("d", d));
+      }
+      // glitter under the sun (golden) or the moon (silver)
+      const gx = sunGlitter && showSun ? lx : moonGlitter && showMoon ? lmx : null;
+      sc.path.style.display = gx === null ? "none" : "";
+      if (gx !== null){
+        sc.path.setAttribute("transform", `translate(${gx.toFixed(1)},0)`);
+        sc.path.style.setProperty("--glitter", sunGlitter && showSun ? (low > .4 ? "#ffb870" : "#fff0c0") : "#fff4d6");
+        sc.path.style.opacity = (sunGlitter && showSun ? 1 : s.nightK * (.3 + .7 * s.moonFrac)).toFixed(3);
+      }
+    }
+  }
+  // ---- the page
+  let times = null, timesDay = "";
+  const hm = d => d ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "--:--";
+  function apply(){
+    const s = skyNow = state(), w = { night: s.nightK, tw: s.twK, day: s.dayK }, st = root.style;
+    st.setProperty("--sky-top", mix(PAL, 0, w)); st.setProperty("--sky-mid", mix(PAL, 1, w)); st.setProperty("--sky-bot", mix(PAL, 2, w));
+    st.setProperty("--water-top", mix(WATER, 0, w)); st.setProperty("--water-bot", mix(WATER, 1, w));
+    st.setProperty("--classic-bg", mix(CLASSIC, 0, w));
+    st.setProperty("--dayk", s.dayK.toFixed(3));
+    st.setProperty("--sun-x", `${(Math.max(0, Math.min(1200, panX(s.sunAz))) / 12).toFixed(1)}%`);
+    st.setProperty("--sun-y", `${Math.max(-8, 62 - s.sunAlt * 1.7).toFixed(1)}%`);
+    st.setProperty("--sun-glow", s.sunAlt > -8 ? `rgba(${s.dayK > .5 ? "255,244,214" : "255,150,90"},${(.32 * s.dayK + .42 * s.twK).toFixed(3)})` : "rgba(0,0,0,0)");
+    const phase = s.dayK > .5 ? "day" : s.nightK > .5 ? "night" : "twilight";
+    if (root.dataset.sky !== phase) root.dataset.sky = phase;
+    place2D(s);
+    const today = new Date().toDateString();
+    if (timesDay !== today){ timesDay = today; times = Celestial.sunTimes(new Date()); }
+    const note = document.getElementById("skyNote");
+    if (note){
+      const lit = `moon ${Math.round(s.moonFrac * 100)}% lit`;
+      note.textContent = skyPreview ? "(preview)"
+        : phase === "day" ? `☀ daytime · sunset ${hm(times.set)}`
+        : phase === "night" ? `☾ night · sunrise ${hm(times.rise)} · ${lit}`
+        : s.sunAz < 180 ? `dawn · sunrise ${hm(times.rise)}` : `dusk · sunset ${hm(times.set)}`;
+    }
+    document.querySelectorAll(".sky-btn").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.skyMode === "live" && !skyPreview) || b.dataset.skyMode === skyPreview)));
+    if (window.__sky3d) window.__sky3d(s);
+  }
+  document.querySelectorAll(".sky-btn").forEach(b => b.addEventListener("click", () => { skyPreview = b.dataset.skyMode === "live" ? null : b.dataset.skyMode; apply(); }));
+  apply();
+  setInterval(apply, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) apply(); });
+  return { apply, state: () => skyNow };
+})();
+window.__skyClock = SkyClock;
+
+// night sky: twinkling stars (full res) + three aurora curtains (quarter res, CSS-blurred); clouds by day
 const Sky = (() => {
   const sky = document.getElementById("sky"), au = document.getElementById("auroraCanvas");
   const sc = sky.getContext("2d"), ac = au.getContext("2d");
@@ -2955,12 +3136,15 @@ const Sky = (() => {
   curtains.forEach(k => { k.a = k.c.split(",").map(Number); k.b = k.rc.split(",").map(Number); });
   let stars = [], raf = null, last = 0, W = 0, H = 0, meteors = [], nextMeteor = 3;
   let alarm = 0, red = 0, prevT = 0;           // alarm target, and how red the sky is now (eases in over ~3s)
+  let clouds = [];
 
   function resize(){
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = innerWidth; H = innerHeight;
     sky.width = W * dpr; sky.height = H * dpr; sc.setTransform(dpr, 0, 0, dpr, 0, 0);
     au.width = Math.ceil(W / 4); au.height = Math.ceil(H / 4);
+    clouds = Array.from({ length: 9 }, () => ({ x: Math.random() * 1.3, y: .03 + Math.random() * .32, rx: .05 + Math.random() * .08, ry: .018 + Math.random() * .022,
+      sp: .002 + Math.random() * .005, puffs: [[0, 0, 1], [.05, .012, .8], [-.05, .014, .75], [.025, -.016, .7], [-.02, -.012, .6]] }));
     stars = Array.from({ length: Math.round(W * H / 6500) }, () => ({
       x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.2 + 0.3,
       p: Math.random() * 6.28, s: 0.4 + Math.random() * 1.6,
@@ -2972,13 +3156,22 @@ const Sky = (() => {
     red = reduce ? alarm : red + Math.max(-ease, Math.min(ease, alarm - red));
     curtains.forEach(k => { k.c = k.a.map((v, i) => Math.round(v + (k.b[i] - v) * red)).join(","); });
     ac.clearRect(0, 0, w, h);
+    const cloudK = skyNow.dayK + skyNow.twK * .8;
+    if (cloudK > .01){                              // soft clouds (the canvas is blurred by CSS)
+      ac.fillStyle = skyNow.dayK >= skyNow.twK ? `rgba(255,255,255,${(.5 * cloudK).toFixed(3)})` : `rgba(255,176,150,${(.45 * cloudK).toFixed(3)})`;
+      for (const c of clouds){
+        const x = ((c.x + t * c.sp) % 1.3) - .15;
+        for (const [dx, dy, sr] of c.puffs){ ac.beginPath(); ac.ellipse((x + dx) * w, (c.y + dy) * h, c.rx * sr * w, c.ry * sr * h, 0, 0, Math.PI * 2); ac.fill(); }
+      }
+    }
+    const auroraK = Math.max(red, skyNow.nightK + skyNow.twK * .3);
     ac.globalCompositeOperation = "lighter";
-    curtains.forEach(k => {
+    if (auroraK > .01) curtains.forEach(k => {
       for (let x = 0; x <= w; x += 2){
         const u = x / w;
         const top = h * (k.y + k.amp * Math.sin(u * 6.28 * k.f + t * k.sp + k.ph) + 0.025 * Math.sin(u * 23 + t * k.sp * 3));
         const len = h * (0.28 + 0.12 * Math.sin(u * 8 + t * k.sp * 2 + k.ph));
-        const a = 0.11 + 0.08 * Math.sin(u * 13 + t * k.sp * 4 + k.ph);
+        const a = (0.11 + 0.08 * Math.sin(u * 13 + t * k.sp * 4 + k.ph)) * auroraK;
         const g = ac.createLinearGradient(0, top, 0, top + len);
         g.addColorStop(0, `rgba(${k.c},0)`); g.addColorStop(0.2, `rgba(${k.c},${a})`); g.addColorStop(1, `rgba(${k.c},0)`);
         ac.fillStyle = g; ac.fillRect(x, top, 2, len);
@@ -2992,15 +3185,16 @@ const Sky = (() => {
       gr.addColorStop(0, `rgba(160,0,20,${(.6 * red).toFixed(3)})`); gr.addColorStop(.55, `rgba(95,0,14,${(.35 * red).toFixed(3)})`); gr.addColorStop(1, `rgba(40,0,6,${(.2 * red).toFixed(3)})`);
       sc.fillStyle = gr; sc.fillRect(0, 0, W, H);
     }
-    stars.forEach(s => {
-      sc.globalAlpha = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p));
+    const starK = Math.min(1, skyNow.nightK + skyNow.twK * .35);
+    if (starK > .02) stars.forEach(s => {
+      sc.globalAlpha = (0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * s.s + s.p))) * starK;
       sc.fillStyle = "#fff";
       sc.fillRect(s.x, s.y, s.r, s.r);
     });
     sc.globalAlpha = 1;
 
     // shooting stars: one every 5-14s, streaking down-left with a fading tail
-    if (t >= nextMeteor){
+    if (t >= nextMeteor && (alarm > 0 || skyNow.nightK > .5)){
       const storm = alarm > 0;                      // alarm: a steep, fiery meteor shower
       meteors.push({ x: W * (0.25 + Math.random() * 0.7), y: H * Math.random() * (storm ? 0.2 : 0.35), t0: t, storm,
                      vx: -(storm ? 260 + Math.random() * 260 : 420 + Math.random() * 260), vy: storm ? 380 + Math.random() * 260 : 150 + Math.random() * 110,
@@ -3264,11 +3458,12 @@ tickClock();
     if (!loading) loading = (async () => {
       if (!webglOK()) throw new Error("WebGL is not available");
       msg.textContent = "Loading 3D…";
-      const mod = await import("./scene3d.js?v=10");
+      const mod = await import("./scene3d.js?v=11");
       api = mod.create(host);
       msg.textContent = "";
       api.setStates(states3d);
       if (alarmOn) api.setAlarm(true);
+      api.setSky(SkyClock.state());
       return api;
     })();
     return loading;
@@ -3289,6 +3484,7 @@ tickClock();
   }));
   window.__push3d = () => { if (api) api.setStates(states3d); };
   window.__alarm3d = on => { if (api) api.setAlarm(on); };
+  window.__sky3d = st => { if (api) api.setSky(st); };
   window.__scene3d = () => api;   // for automated checks
   window.__apply3d = apply;
   apply();

@@ -121,3 +121,4 @@ timestamp,sign_name,event,status_text
 2026-09-26T17:23:43,VMS C West Street North,RESOLVED,
 2026-09-26T17:23:43,VMS F West St/Hunger Hill,OTHER_FAULTS_PRESENT,"(('Internal Comms Status', 'Not Acknowledged'), ('LED Fail Critical', 'Not Acknowledged'), ('Luminance Fail', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
 2026-09-26T17:23:43,VMS F West St/Hunger Hill,RESOLVED,
+2026-09-26T23:39:35,VMS D New Quay Road,OTHER_FAULTS_CLEARED,

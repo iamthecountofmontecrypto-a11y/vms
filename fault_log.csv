@@ -107,3 +107,4 @@ timestamp,sign_name,event,status_text
 2026-09-26T07:54:58,VMS D New Quay Road,STARTED,Not Acknowledged
 2026-09-26T08:05:07,VMS D New Quay Road,OTHER_FAULTS_PRESENT,"(('LED Fail Non Critical', 'Not Acknowledged'), ('Lantern Fail', 'Not Acknowledged'))"
 2026-09-26T08:05:07,VMS D New Quay Road,RESOLVED,
+2026-09-26T10:17:21,VMS E Norton Way,STARTED,Not Acknowledged

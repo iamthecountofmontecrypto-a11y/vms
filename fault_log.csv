@@ -151,3 +151,5 @@ timestamp,sign_name,event,status_text
 2026-09-29T01:51:38,VMS F West St/Hunger Hill,RESOLVED,
 2026-09-29T06:58:36,VMS A Blandford Road,STARTED,Not Acknowledged
 2026-09-29T06:58:36,VMS C West Street North,STARTED,Not Acknowledged
+2026-09-29T07:11:03,VMS A Blandford Road,RESOLVED,
+2026-09-29T07:11:04,VMS C West Street North,RESOLVED,

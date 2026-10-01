@@ -157,3 +157,13 @@ timestamp,sign_name,event,status_text
 2026-09-29T08:21:35,VMS E Norton Way,RESOLVED,
 2026-09-30T22:52:44,VMS A Blandford Road,STARTED,Not Acknowledged
 2026-09-30T23:01:17,VMS A Blandford Road,RESOLVED,
+2026-10-01T02:28:57,VMS A Blandford Road,ERROR,401 Client Error: Unauthorized for url: https://www.combinedcontrol.com/Support/View_Map.aspx/CreateFaultDetails
+2026-10-01T02:28:57,VMS C West Street North,ERROR,401 Client Error: Unauthorized for url: https://www.combinedcontrol.com/Support/View_Map.aspx/CreateFaultDetails
+2026-10-01T02:28:57,VMS D New Quay Road,ERROR,401 Client Error: Unauthorized for url: https://www.combinedcontrol.com/Support/View_Map.aspx/CreateFaultDetails
+2026-10-01T02:28:57,VMS E Norton Way,ERROR,401 Client Error: Unauthorized for url: https://www.combinedcontrol.com/Support/View_Map.aspx/CreateFaultDetails
+2026-10-01T02:28:57,VMS F West St/Hunger Hill,ERROR,401 Client Error: Unauthorized for url: https://www.combinedcontrol.com/Support/View_Map.aspx/CreateFaultDetails
+2026-10-01T02:28:57,VMS A Blandford Road,SIGN_STATE_ERROR,ViewVms returned HTTP 302
+2026-10-01T02:28:59,VMS C West Street North,SIGN_STATE_ERROR,ViewVms returned HTTP 302
+2026-10-01T02:29:01,VMS D New Quay Road,SIGN_STATE_ERROR,ViewVms returned HTTP 302
+2026-10-01T02:29:03,VMS E Norton Way,SIGN_STATE_ERROR,ViewVms returned HTTP 302
+2026-10-01T02:29:05,VMS F West St/Hunger Hill,SIGN_STATE_ERROR,ViewVms returned HTTP 302
